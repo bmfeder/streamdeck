@@ -11,6 +11,7 @@ let package = Package(
     products: [
         .library(name: "M3UParser", targets: ["M3UParser"]),
         .library(name: "XtreamClient", targets: ["XtreamClient"]),
+        .library(name: "XMLTVParser", targets: ["XMLTVParser"]),
     ],
     targets: [
         .target(
@@ -21,6 +22,10 @@ let package = Package(
             name: "XtreamClient",
             path: "Sources/XtreamClient"
         ),
+        .target(
+            name: "XMLTVParser",
+            path: "Sources/XMLTVParser"
+        ),
         .testTarget(
             name: "M3UParserTests",
             dependencies: ["M3UParser"],
@@ -30,6 +35,11 @@ let package = Package(
             name: "XtreamClientTests",
             dependencies: ["XtreamClient"],
             path: "Tests/XtreamClientTests"
+        ),
+        .testTarget(
+            name: "XMLTVParserTests",
+            dependencies: ["XMLTVParser"],
+            path: "Tests/XMLTVParserTests"
         ),
     ]
 )
