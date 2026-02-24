@@ -1,0 +1,2789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StreamDeck — App Design Specification v2</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,700;1,9..144,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface-2: #1a1a26;
+    --surface-3: #222232;
+    --border: #2a2a3a;
+    --border-accent: #3d3d5c;
+    --text: #e8e8f0;
+    --text-muted: #8888a0;
+    --text-dim: #55556a;
+    --accent: #6c5ce7;
+    --accent-glow: #8b7cf0;
+    --accent-dim: #4a3cb8;
+    --green: #00d68f;
+    --green-dim: #0a3d2a;
+    --amber: #f0a030;
+    --amber-dim: #3d2a0a;
+    --red: #f05050;
+    --red-dim: #3d1515;
+    --cyan: #00c8ff;
+    --cyan-dim: #0a2a3d;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection { background: var(--accent); color: white; }
+
+  /* --- NAVIGATION --- */
+  nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 280px;
+    height: 100vh;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 32px 0;
+    overflow-y: auto;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+  }
+
+  nav::-webkit-scrollbar { width: 4px; }
+  nav::-webkit-scrollbar-track { background: transparent; }
+  nav::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  .nav-logo {
+    padding: 0 24px 28px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 20px;
+  }
+
+  .nav-logo h1 {
+    font-family: 'Fraunces', serif;
+    font-size: 22px;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent-glow), var(--cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -0.5px;
+  }
+
+  .nav-logo span {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    display: block;
+    margin-top: 4px;
+    -webkit-text-fill-color: var(--text-muted);
+  }
+
+  .nav-section { padding: 0 16px; margin-bottom: 8px; }
+
+  .nav-section-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    padding: 12px 8px 6px;
+  }
+
+  .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--text-muted);
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .nav-link:hover { background: var(--surface-2); color: var(--text); }
+  .nav-link.active { background: var(--accent-dim); color: white; font-weight: 500; }
+  .nav-link .num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    min-width: 20px;
+  }
+
+  /* --- MAIN CONTENT --- */
+  main {
+    margin-left: 280px;
+    min-height: 100vh;
+  }
+
+  .hero {
+    position: relative;
+    padding: 80px 60px 60px;
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -20%;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(108,92,231,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-bottom: 24px;
+  }
+
+  .hero-badge .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+  }
+
+  .hero h2 {
+    font-family: 'Fraunces', serif;
+    font-size: 48px;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -1.5px;
+    margin-bottom: 16px;
+    max-width: 700px;
+  }
+
+  .hero p {
+    font-size: 17px;
+    color: var(--text-muted);
+    max-width: 640px;
+    line-height: 1.8;
+  }
+
+  .hero-stats {
+    display: flex;
+    gap: 40px;
+    margin-top: 32px;
+    padding-top: 28px;
+    border-top: 1px solid var(--border);
+  }
+
+  .hero-stat-value {
+    font-family: 'Fraunces', serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--accent-glow);
+  }
+
+  .hero-stat-label {
+    font-size: 12px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 4px;
+  }
+
+  /* --- SECTIONS --- */
+  section {
+    padding: 60px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  section:target { animation: flash 0.6s ease; }
+
+  @keyframes flash {
+    0% { background: rgba(108,92,231,0.05); }
+    100% { background: transparent; }
+  }
+
+  .section-header { margin-bottom: 40px; }
+
+  .section-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--accent);
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+
+  .section-header h3 {
+    font-family: 'Fraunces', serif;
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    margin-bottom: 10px;
+  }
+
+  .section-header p {
+    font-size: 15px;
+    color: var(--text-muted);
+    max-width: 700px;
+  }
+
+  .sub-heading {
+    font-size: 17px;
+    font-weight: 600;
+    margin-top: 40px;
+    margin-bottom: 16px;
+    padding-top: 28px;
+    border-top: 1px solid var(--border);
+  }
+
+  /* --- CARDS --- */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+    margin-top: 24px;
+  }
+
+  .card-grid.compact {
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    transition: all 0.2s;
+  }
+
+  .card:hover {
+    border-color: var(--border-accent);
+    transform: translateY(-1px);
+  }
+
+  .card-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    margin-bottom: 16px;
+  }
+
+  .card-icon.purple { background: rgba(108,92,231,0.15); color: var(--accent-glow); }
+  .card-icon.green { background: var(--green-dim); color: var(--green); }
+  .card-icon.amber { background: var(--amber-dim); color: var(--amber); }
+  .card-icon.cyan { background: var(--cyan-dim); color: var(--cyan); }
+  .card-icon.red { background: var(--red-dim); color: var(--red); }
+
+  .card h4 {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .card p, .card li {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+
+  .card ul {
+    list-style: none;
+    margin-top: 8px;
+  }
+
+  .card ul li::before {
+    content: '→ ';
+    color: var(--text-dim);
+  }
+
+  /* --- TAGS --- */
+  .tag {
+    display: inline-flex;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+
+  .tag.mvp { background: var(--green-dim); color: var(--green); }
+  .tag.v2 { background: var(--amber-dim); color: var(--amber); }
+  .tag.v3 { background: var(--cyan-dim); color: var(--cyan); }
+  .tag.native { background: rgba(108,92,231,0.15); color: var(--accent-glow); }
+  .tag.new { background: var(--red-dim); color: var(--red); }
+
+  /* --- TABLES --- */
+  .spec-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    font-size: 13px;
+  }
+
+  .spec-table th {
+    text-align: left;
+    padding: 12px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+  }
+
+  .spec-table td {
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    vertical-align: top;
+  }
+
+  .spec-table tr:hover td { background: var(--surface); }
+
+  /* --- FLOW DIAGRAM --- */
+  .flow-container {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px 40px;
+    margin-top: 24px;
+    overflow-x: auto;
+  }
+
+  .flow-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+
+  .flow-node {
+    padding: 9px 18px;
+    border-radius: 10px;
+    font-size: 12.5px;
+    font-weight: 500;
+    white-space: nowrap;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+  }
+
+  .flow-node.start { background: var(--accent-dim); border-color: var(--accent); color: white; }
+  .flow-node.decision { border-radius: 20px; background: var(--amber-dim); border-color: rgba(240,160,48,0.3); color: var(--amber); }
+  .flow-node.action { background: var(--green-dim); border-color: rgba(0,214,143,0.3); color: var(--green); }
+  .flow-node.end { background: var(--cyan-dim); border-color: rgba(0,200,255,0.3); color: var(--cyan); }
+  .flow-node.error { background: var(--red-dim); border-color: rgba(240,80,80,0.3); color: var(--red); }
+
+  .flow-arrow { color: var(--text-dim); font-size: 16px; flex-shrink: 0; }
+
+  .flow-label {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .flow-branch {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-left: 40px;
+    margin-bottom: 16px;
+  }
+
+  .flow-branch::before {
+    content: '↳';
+    color: var(--text-dim);
+    font-size: 16px;
+  }
+
+  /* --- ARCHITECTURE DIAGRAM --- */
+  .arch-diagram {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 16px;
+    margin-top: 24px;
+  }
+
+  .arch-layer {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+
+  .arch-layer h5 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .arch-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 0;
+    font-size: 12.5px;
+    color: var(--text-muted);
+  }
+
+  .arch-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .arch-new {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--red);
+    background: var(--red-dim);
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin-left: auto;
+    letter-spacing: 0.5px;
+  }
+
+  /* --- TV MOCKUP --- */
+  .tv-frame {
+    background: #111118;
+    border: 3px solid #2a2a3a;
+    border-radius: 16px;
+    overflow: hidden;
+    margin-top: 24px;
+    max-width: 920px;
+  }
+
+  .tv-screen {
+    padding: 32px 40px;
+    position: relative;
+    min-height: 420px;
+  }
+
+  .tv-sidebar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 210px;
+    background: rgba(0,0,0,0.4);
+    padding: 28px 18px;
+    border-right: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .tv-sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 14px;
+    border-radius: 10px;
+    font-size: 13.5px;
+    color: rgba(255,255,255,0.4);
+    margin-bottom: 3px;
+    transition: all 0.2s;
+  }
+
+  .tv-sidebar-item.focused {
+    background: rgba(108,92,231,0.3);
+    color: white;
+    box-shadow: 0 0 0 2px var(--accent);
+    transform: scale(1.03);
+  }
+
+  .tv-sidebar-item .icon { font-size: 15px; min-width: 20px; text-align: center; }
+
+  .tv-content { margin-left: 228px; }
+
+  .tv-hero-card {
+    background: linear-gradient(135deg, rgba(108,92,231,0.2) 0%, rgba(0,200,255,0.1) 100%);
+    border: 1px solid rgba(108,92,231,0.2);
+    border-radius: 14px;
+    padding: 24px 28px;
+    margin-bottom: 22px;
+  }
+
+  .tv-hero-card h4 {
+    font-family: 'Fraunces', serif;
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 5px;
+  }
+
+  .tv-hero-card p { font-size: 12.5px; color: var(--text-muted); }
+
+  .tv-row-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .tv-channel-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+
+  .tv-channel {
+    flex-shrink: 0;
+    width: 130px;
+    height: 78px;
+    border-radius: 10px;
+    background: var(--surface-2);
+    border: 2px solid transparent;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: var(--text-muted);
+    transition: all 0.2s;
+  }
+
+  .tv-channel.focused {
+    border-color: white;
+    transform: scale(1.08);
+    background: var(--surface-3);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    color: white;
+  }
+
+  .tv-channel .ch-name { font-weight: 600; margin-bottom: 3px; font-size: 12.5px; }
+  .tv-channel .ch-prog { font-size: 10px; opacity: 0.6; }
+
+  .tv-minibar {
+    position: absolute;
+    bottom: 0;
+    left: 210px;
+    right: 0;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid rgba(255,255,255,0.08);
+    padding: 10px 28px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 12px;
+  }
+
+  .minibar-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--red);
+    box-shadow: 0 0 6px var(--red);
+    animation: pulse-dot 1.5s infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .minibar-text { color: var(--text-muted); }
+  .minibar-text strong { color: var(--text); font-weight: 600; }
+
+  /* --- TIMELINE --- */
+  .timeline {
+    position: relative;
+    margin-top: 24px;
+    padding-left: 30px;
+  }
+
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 7px;
+    top: 8px;
+    bottom: 8px;
+    width: 2px;
+    background: var(--border);
+  }
+
+  .timeline-item {
+    position: relative;
+    margin-bottom: 32px;
+    padding-left: 20px;
+  }
+
+  .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -26px;
+    top: 8px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: var(--bg);
+  }
+
+  .timeline-item.active::before {
+    border-color: var(--green);
+    background: var(--green);
+    box-shadow: 0 0 10px rgba(0,214,143,0.3);
+  }
+
+  .timeline-item.upcoming::before { border-color: var(--accent); }
+
+  .timeline-phase {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 6px;
+  }
+
+  .timeline-phase.g { color: var(--green); }
+  .timeline-phase.a { color: var(--amber); }
+  .timeline-phase.c { color: var(--cyan); }
+  .timeline-phase.p { color: var(--accent-glow); }
+  .timeline-phase.r { color: var(--red); }
+
+  .timeline-title {
+    font-size: 17px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+
+  .timeline-desc {
+    font-size: 13px;
+    color: var(--text-muted);
+    max-width: 640px;
+    line-height: 1.7;
+  }
+
+  .timeline-features {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  /* --- CODE BLOCK --- */
+  .code-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin-top: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    line-height: 1.8;
+    color: var(--text-muted);
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  .code-block .comment { color: var(--text-dim); }
+  .code-block .keyword { color: var(--accent-glow); }
+  .code-block .string { color: var(--green); }
+  .code-block .type { color: var(--cyan); }
+  .code-block .new-marker { color: var(--red); font-weight: 700; }
+
+  /* --- CALLOUT --- */
+  .callout {
+    border-left: 3px solid;
+    padding: 16px 20px;
+    border-radius: 0 8px 8px 0;
+    margin-top: 20px;
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+
+  .callout.info { border-color: var(--accent); background: rgba(108,92,231,0.06); }
+  .callout.warn { border-color: var(--amber); background: rgba(240,160,48,0.06); }
+  .callout.tip { border-color: var(--green); background: rgba(0,214,143,0.06); }
+  .callout.danger { border-color: var(--red); background: rgba(240,80,80,0.06); }
+
+  .callout strong { color: var(--text); }
+
+  /* --- COMPARISON TABLE --- */
+  .compare-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+    gap: 16px;
+    margin-top: 24px;
+  }
+
+  .compare-col {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .compare-col.recommended { border-color: var(--green); }
+
+  .compare-header {
+    padding: 16px 20px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .compare-body { padding: 16px 20px; }
+
+  .compare-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 5px 0;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .compare-item .check { color: var(--green); flex-shrink: 0; }
+  .compare-item .cross { color: var(--red); flex-shrink: 0; opacity: 0.6; }
+  .compare-item .warn { color: var(--amber); flex-shrink: 0; }
+
+  /* --- RISK TABLE --- */
+  .risk-row {
+    display: grid;
+    grid-template-columns: 80px 1fr 1fr 100px;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-top: none;
+    font-size: 13px;
+  }
+
+  .risk-row:first-child { border-top: 1px solid var(--border); border-radius: 8px 8px 0 0; }
+  .risk-row:last-child { border-radius: 0 0 8px 8px; }
+
+  .risk-row.header {
+    background: var(--surface);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+  }
+
+  .risk-cell {
+    padding: 12px 16px;
+    border-right: 1px solid var(--border);
+    color: var(--text-muted);
+  }
+
+  .risk-cell:last-child { border-right: none; }
+
+  .severity-high { color: var(--red); font-weight: 600; }
+  .severity-med { color: var(--amber); font-weight: 600; }
+  .severity-low { color: var(--green); font-weight: 600; }
+
+  /* --- NFR GAUGE --- */
+  .nfr-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+    margin-top: 24px;
+  }
+
+  .nfr-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    text-align: center;
+  }
+
+  .nfr-value {
+    font-family: 'Fraunces', serif;
+    font-size: 36px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .nfr-value.green { color: var(--green); }
+  .nfr-value.amber { color: var(--amber); }
+  .nfr-value.cyan { color: var(--cyan); }
+  .nfr-value.purple { color: var(--accent-glow); }
+
+  .nfr-label {
+    font-size: 12px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .nfr-detail {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 8px;
+    line-height: 1.5;
+  }
+
+  /* --- RESPONSIVE --- */
+  @media (max-width: 1200px) {
+    .arch-diagram { grid-template-columns: 1fr 1fr; }
+  }
+
+  @media (max-width: 900px) {
+    .arch-diagram { grid-template-columns: 1fr; }
+    .compare-grid { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 800px) {
+    nav { display: none; }
+    main { margin-left: 0; }
+    .hero { padding: 40px 24px; }
+    section { padding: 40px 24px; }
+    .hero h2 { font-size: 32px; }
+    .hero-stats { flex-wrap: wrap; gap: 24px; }
+    .tv-sidebar { display: none; }
+    .tv-content { margin-left: 0; }
+    .tv-minibar { left: 0; }
+    .nfr-grid { grid-template-columns: 1fr 1fr; }
+  }
+
+  /* --- ACCESSIBILITY --- */
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    .tv-channel.focused { transform: none; }
+    .minibar-dot { animation: none; opacity: 1; }
+  }
+
+  .nav-link:focus-visible {
+    outline: 2px solid var(--accent-glow);
+    outline-offset: -2px;
+    background: var(--surface-2);
+    color: var(--text);
+  }
+
+  html { scroll-behavior: smooth; }
+</style>
+</head>
+<body>
+
+<!-- NAVIGATION -->
+<nav>
+  <div class="nav-logo">
+    <h1>StreamDeck</h1>
+    <span>Design Spec v2.0</span>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">Overview</div>
+    <a class="nav-link active" href="#overview" onclick="setActive(this)"><span class="num">00</span> Product Vision</a>
+    <a class="nav-link" href="#non-goals" onclick="setActive(this)"><span class="num">00b</span> Non-Goals</a>
+    <a class="nav-link" href="#tech-stack" onclick="setActive(this)"><span class="num">01</span> Tech Stack</a>
+    <a class="nav-link" href="#architecture" onclick="setActive(this)"><span class="num">02</span> Architecture</a>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">Features</div>
+    <a class="nav-link" href="#features" onclick="setActive(this)"><span class="num">03</span> Feature Map</a>
+    <a class="nav-link" href="#screens" onclick="setActive(this)"><span class="num">04</span> Screen Flows</a>
+    <a class="nav-link" href="#empty-states" onclick="setActive(this)"><span class="num">04b</span> Empty / Degraded States</a>
+    <a class="nav-link" href="#tvos-ui" onclick="setActive(this)"><span class="num">05</span> tvOS Interface</a>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">Execution</div>
+    <a class="nav-link" href="#data-model" onclick="setActive(this)"><span class="num">06</span> Data Model</a>
+    <a class="nav-link" href="#roadmap" onclick="setActive(this)"><span class="num">07</span> Roadmap</a>
+    <a class="nav-link" href="#monetization" onclick="setActive(this)"><span class="num">08</span> Monetization</a>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">Reliability</div>
+    <a class="nav-link" href="#compliance" onclick="setActive(this)"><span class="num">09a</span> Legal & Compliance</a>
+    <a class="nav-link" href="#risks" onclick="setActive(this)"><span class="num">09b</span> Risks & Mitigations</a>
+    <a class="nav-link" href="#nfr" onclick="setActive(this)"><span class="num">10</span> Non-Functional Reqs</a>
+    <a class="nav-link" href="#analytics" onclick="setActive(this)"><span class="num">11</span> Analytics & Privacy</a>
+  </div>
+</nav>
+
+<!-- MAIN CONTENT -->
+<main>
+
+  <!-- HERO -->
+  <div class="hero" id="overview">
+    <div class="hero-badge">
+      <span class="dot"></span>
+      Design Specification v2 — February 2026
+    </div>
+    <h2>A blazing-fast, native media player for IPTV and Emby</h2>
+    <p>Cross-platform media player built with native performance as the north star. tvOS-first design with M3U/Xtream Codes IPTV support and full Emby integration — wrapped in a clean, minimal interface designed for the 10-foot experience.</p>
+    <div class="hero-stats">
+      <div>
+        <div class="hero-stat-value">13</div>
+        <div class="hero-stat-label">Core Screens</div>
+      </div>
+      <div>
+        <div class="hero-stat-value">5</div>
+        <div class="hero-stat-label">Phases to Launch</div>
+      </div>
+      <div>
+        <div class="hero-stat-value">~22</div>
+        <div class="hero-stat-label">Weeks to Launch</div>
+      </div>
+      <div>
+        <div class="hero-stat-value">3</div>
+        <div class="hero-stat-label">Platforms (tvOS-first)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NON-GOALS -->
+  <section id="non-goals">
+    <div class="section-header">
+      <div class="section-num">00b — SCOPE CONTROL</div>
+      <h3>Non-Goals (MVP)</h3>
+      <p>Explicitly out of scope for the initial release. These are valid features but they would delay launch without proportional user value. Revisit after public launch metrics are in.</p>
+    </div>
+
+    <div class="card-grid compact">
+      <div class="card">
+        <div class="card-icon red">🚫</div>
+        <h4>No Server-Side Account System</h4>
+        <p>No user accounts, no backend, no login. All data is local + CloudKit sync (v2). This keeps infrastructure costs at zero and avoids GDPR account management obligations.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon red">🚫</div>
+        <h4>No Provider Marketplace / Discovery</h4>
+        <p>The app never suggests, recommends, or lists IPTV providers. Users bring their own sources. This is both a legal requirement and an App Store survival strategy.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon red">🚫</div>
+        <h4>No DVR / Recording</h4>
+        <p>No local recording of live streams. Catch-up (v3) uses provider-side timeshift only. Recording raises significant legal and storage issues that aren't worth the complexity.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon red">🚫</div>
+        <h4>No Transcoding Server</h4>
+        <p>The app plays streams as-is. No server-side transcoding, no format conversion. VLCKit handles codec fallback client-side, which covers 99% of real-world streams.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon red">🚫</div>
+        <h4>No External Subtitle Downloads</h4>
+        <p>Supports embedded subtitles and sidecar SRT files only. No OpenSubtitles integration or subtitle search. Emby provides its own subtitle management.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon red">🚫</div>
+        <h4>No Chromecast / DLNA</h4>
+        <p>AirPlay 2 only in MVP. Chromecast and DLNA support deferred to the Android TV build (Phase 4) where the Google Cast SDK is native.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 01: TECH STACK -->
+  <section id="tech-stack">
+    <div class="section-header">
+      <div class="section-num">01 — TECHNOLOGY</div>
+      <h3>Tech Stack Recommendation</h3>
+      <p>Native-first with shared business logic via KMP. Prioritizes tvOS performance and cross-platform reach without compromising the focus engine or video pipeline.</p>
+    </div>
+
+    <div class="compare-grid">
+      <div class="compare-col">
+        <div class="compare-header">Flutter / React Native</div>
+        <div class="compare-body">
+          <div class="compare-item"><span class="check">✓</span> Single codebase</div>
+          <div class="compare-item"><span class="check">✓</span> Faster initial dev</div>
+          <div class="compare-item"><span class="cross">✗</span> Poor tvOS focus engine support</div>
+          <div class="compare-item"><span class="cross">✗</span> Video player limitations</div>
+          <div class="compare-item"><span class="cross">✗</span> Extra bridge latency</div>
+          <div class="compare-item"><span class="cross">✗</span> Harder to debug media pipeline</div>
+          <div class="callout warn" style="margin-top: 12px; font-size: 12px;">
+            <strong>Verdict:</strong> Flutter's tvOS support is unofficial. RN-TV exists but fights the focus engine. Not viable for a media-first app.
+          </div>
+        </div>
+      </div>
+
+      <div class="compare-col recommended">
+        <div class="compare-header">
+          Native + KMP
+          <span class="tag mvp">★ Recommended</span>
+        </div>
+        <div class="compare-body">
+          <div class="compare-item"><span class="check">✓</span> Full tvOS focus engine access</div>
+          <div class="compare-item"><span class="check">✓</span> Native AVPlayer / ExoPlayer</div>
+          <div class="compare-item"><span class="check">✓</span> Shared networking, parsing, caching via KMP</div>
+          <div class="compare-item"><span class="check">✓</span> Peak performance per platform</div>
+          <div class="compare-item"><span class="warn">~</span> Two UI codebases (SwiftUI + Compose)</div>
+          <div class="compare-item"><span class="check">✓</span> KMP handles 40–60% of total code</div>
+          <div class="callout tip" style="margin-top: 12px; font-size: 12px;">
+            <strong>Verdict:</strong> Best of both worlds. Native UI where it matters with shared business logic. Set up the KMP module from day 1 (even if empty) to avoid refactoring later.
+          </div>
+        </div>
+      </div>
+
+      <div class="compare-col">
+        <div class="compare-header">Pure Native</div>
+        <div class="compare-body">
+          <div class="compare-item"><span class="check">✓</span> Maximum control</div>
+          <div class="compare-item"><span class="check">✓</span> Best possible performance</div>
+          <div class="compare-item"><span class="check">✓</span> Full platform API access</div>
+          <div class="compare-item"><span class="cross">✗</span> Duplicate logic everywhere</div>
+          <div class="compare-item"><span class="cross">✗</span> 2× maintenance burden</div>
+          <div class="compare-item"><span class="cross">✗</span> Bug parity is hard</div>
+          <div class="callout info" style="margin-top: 12px; font-size: 12px;">
+            <strong>Verdict:</strong> Overkill for v1. Good fallback if KMP's shared layer proves limiting.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h4 class="sub-heading">Stack Breakdown by Layer</h4>
+    <table class="spec-table">
+      <tr>
+        <th style="width: 140px;">Layer</th>
+        <th>Apple (tvOS / iOS)</th>
+        <th>Android / Android TV</th>
+        <th>Shared (KMP)</th>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">UI Framework</td>
+        <td>SwiftUI + UIKit (tvOS focus)</td>
+        <td>Jetpack Compose for TV <span class="tag new" style="font-size: 9px;">Updated</span><br><span style="font-size: 11px; color: var(--text-dim);">androidx.tv:tv-material + tv-foundation (Leanback is legacy)</span></td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">State Management <span class="tag new" style="font-size: 9px;">New</span></td>
+        <td>TCA (The Composable Architecture)<br><span style="font-size: 11px; color: var(--text-dim);">Proven on tvOS, great for complex player state</span></td>
+        <td>Orbit MVI with Compose<br><span style="font-size: 11px; color: var(--text-dim);">Unidirectional data flow matching TCA pattern</span></td>
+        <td>KMP ViewModels + shared state via Kotlinx.coroutines</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Video Player</td>
+        <td>AVPlayer + VLCKit fallback</td>
+        <td>ExoPlayer (Media3)</td>
+        <td>Shared player state machine</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Stream Probing</td>
+        <td colspan="2" style="text-align: center;">FFprobeKit (lightweight, no full FFmpeg) <span class="tag new" style="font-size: 9px;">New</span></td>
+        <td>Shared codec routing logic</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Networking</td>
+        <td colspan="2" style="text-align: center;">—</td>
+        <td>Ktor HTTP client</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Image Loading</td>
+        <td colspan="2" style="text-align: center;">—</td>
+        <td>Coil Multiplatform <span class="tag new" style="font-size: 9px;">New</span><br><span style="font-size: 11px; color: var(--text-dim);">Replaces separate Kingfisher + Coil</span></td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Parsing</td>
+        <td colspan="2" style="text-align: center;">—</td>
+        <td>M3U / Xtream / XMLTV parsers</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Local Storage</td>
+        <td colspan="2" style="text-align: center;">—</td>
+        <td>SQLDelight (shared DB)</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">DI</td>
+        <td colspan="2" style="text-align: center;">—</td>
+        <td>Koin</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Security</td>
+        <td>Keychain</td>
+        <td>EncryptedSharedPreferences</td>
+        <td>Cert pinning (Ktor/OkHttp) for Emby endpoints <span class="tag new" style="font-size: 9px;">New</span></td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Cloud Sync</td>
+        <td>CloudKit</td>
+        <td>Firebase / custom API</td>
+        <td>Shared sync protocol</td>
+      </tr>
+    </table>
+
+    <div class="callout tip" style="margin-top: 24px;">
+      <strong>Day-1 KMP setup:</strong> Create the tvOS project with a <code style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--green); background: var(--green-dim); padding: 2px 6px; border-radius: 4px;">shared/</code> KMP module from the start, even if it's empty. This way you simply move code into Shared when ready for iOS/Android — no refactoring needed.
+    </div>
+
+    <div class="callout warn" style="margin-top: 12px;">
+      <strong>Certificate pinning caveat:</strong> Pin certs for Emby connections where you control the endpoint. For arbitrary IPTV streams, use a more flexible trust policy — many providers use rotating CDN domains and self-signed certs, and aggressive pinning will break their playlists.
+    </div>
+  </section>
+
+  <!-- 02: ARCHITECTURE -->
+  <section id="architecture">
+    <div class="section-header">
+      <div class="section-num">02 — ARCHITECTURE</div>
+      <h3>System Architecture</h3>
+      <p>Clean four-layer architecture with a dedicated Use Case / Repository pattern between presentation and domain. Each layer is testable and swappable independently.</p>
+    </div>
+
+    <div class="arch-diagram">
+      <div class="arch-layer">
+        <h5>Presentation</h5>
+        <div class="arch-item"><div class="arch-dot" style="background: var(--accent-glow);"></div> SwiftUI Views (tvOS/iOS)</div>
+        <div class="arch-item"><div class="arch-dot" style="background: var(--accent-glow);"></div> tvOS Focus Engine Handlers</div>
+        <div class="arch-item"><div class="arch-dot" style="background: var(--accent-glow);"></div> Player Overlay UI</div>
+        <div class="arch-item"><div class="arch-dot" style="background: var(--accent-glow);"></div> EPG Grid Component</div>
+        <div class="arch-item"><div class="arch-dot" style="background: var(--accent-glow);"></div> Navigation Router</div>
+        <div class="arch-item"><div class="arch-dot" style="background: var(--accent-glow);"></div> Top Shelf Extension</div>
+        <div class="arch-item"><div class="arch-dot" style="background: var(--accent-glow);"></div> Now Playing Mini-Bar <span class="arch-new">NEW</span></div>
+      </div>
+      <div class="arch-layer">
+        <h5>Use Cases / Repos <span class="arch-new">NEW</span></h5>
+        <div class="arch-item"><div class="arch-dot" style="background: var(--amber);"></div> PlaylistRepository</div>
+        <div class="arch-item"><div class="arch-dot" style="background: var(--amber);"></div> ChannelRepository</div>
+        <div class="arch-item"><div class="arch-dot" style="background: var(--amber);"></div> EmbyRepository</div>
+        <div class="arch-item"><div class="arch-dot" style="background: var(--amber);"></div> EpgRepository</div>
+        <div class="arch-item"><div class="arch-dot" style="background: var(--amber);"></div> WatchProgressRepo</div>
+        <div class="arch-item"><div class="arch-dot" style="background: var(--amber);"></div> GetChannelsUseCase</div>
+        <div class="arch-item"><div class="arch-dot" style="background: var(--amber);"></div> ResolveStreamUseCase</div>
+        <div class="arch-item"><div class="arch-dot" style="background: var(--amber);"></div> SyncPlaylistUseCase</div>
+      </div>
+      <div class="arch-layer">
+        <h5>Domain (Shared)</h5>
+        <div class="arch-item"><div class="arch-dot" style="background: var(--green);"></div> M3U / Xtream Parser</div>
+        <div class="arch-item"><div class="arch-dot" style="background: var(--green);"></div> XMLTV EPG Parser (incremental) <span class="arch-new">UPD</span></div>
+        <div class="arch-item"><div class="arch-dot" style="background: var(--green);"></div> Emby API Client</div>
+        <div class="arch-item"><div class="arch-dot" style="background: var(--green);"></div> Channel & VOD Models</div>
+        <div class="arch-item"><div class="arch-dot" style="background: var(--green);"></div> Favorites / Recents Engine</div>
+        <div class="arch-item"><div class="arch-dot" style="background: var(--green);"></div> Search Index</div>
+        <div class="arch-item"><div class="arch-dot" style="background: var(--green);"></div> Codec Probe Router <span class="arch-new">NEW</span></div>
+      </div>
+      <div class="arch-layer">
+        <h5>Data</h5>
+        <div class="arch-item"><div class="arch-dot" style="background: var(--cyan);"></div> SQLDelight Database</div>
+        <div class="arch-item"><div class="arch-dot" style="background: var(--cyan);"></div> Ktor HTTP Client</div>
+        <div class="arch-item"><div class="arch-dot" style="background: var(--cyan);"></div> Coil Image Cache <span class="arch-new">UPD</span></div>
+        <div class="arch-item"><div class="arch-dot" style="background: var(--cyan);"></div> Playlist Cache / TTL</div>
+        <div class="arch-item"><div class="arch-dot" style="background: var(--cyan);"></div> CloudKit Sync Adapter</div>
+        <div class="arch-item"><div class="arch-dot" style="background: var(--cyan);"></div> Keychain (credentials)</div>
+        <div class="arch-item"><div class="arch-dot" style="background: var(--cyan);"></div> Schema Migrations <span class="arch-new">NEW</span></div>
+      </div>
+    </div>
+
+    <h4 class="sub-heading">Video Playback Pipeline</h4>
+    <div class="flow-container">
+      <div class="flow-label">Stream Resolution & Playback</div>
+      <div class="flow-row">
+        <div class="flow-node start">User selects channel</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">Resolve stream URL</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node action">FFprobeKit probe</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node decision">HLS / native codec?</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node action">AVPlayer</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node end">Playback</div>
+      </div>
+      <div class="flow-branch">
+        <div class="flow-node decision">Unsupported codec?</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node action">VLCKit fallback</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node end">Playback</div>
+      </div>
+      <div style="margin-top: 20px;">
+        <div class="flow-label">Reconnect Loop (flaky IPTV)</div>
+        <div class="flow-row">
+          <div class="flow-node error">Playback error / timeout</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node decision">Retry ≤ 3?</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node action">Exponential backoff reconnect</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node">Re-probe stream</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node end">Resume playback</div>
+        </div>
+        <div class="flow-branch">
+          <div class="flow-node decision">Retries exhausted?</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node error">Show error + "Try VLCKit" button</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout info" style="margin-top: 24px;">
+      <strong>Stream probing:</strong> FFprobeKit runs a lightweight codec check in &lt;200ms before hitting any player. This routes to the correct player <em>before</em> the user sees a black screen — no fallback delay visible.
+    </div>
+
+    <h4 class="sub-heading">Playback Capability Matrix <span class="tag new" style="font-size: 9px; vertical-align: middle;">New</span></h4>
+    <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">Exact routing policy from FFprobeKit probe result → player engine. Eliminates guesswork during implementation.</p>
+
+    <table class="spec-table">
+      <tr>
+        <th>Container</th>
+        <th>Codec(s)</th>
+        <th>Stream Type</th>
+        <th>Engine</th>
+        <th>Fallback</th>
+        <th>Notes</th>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">HLS (.m3u8)</td>
+        <td>H.264 + AAC</td>
+        <td>HLS</td>
+        <td><span style="color: var(--green);">AVPlayer</span></td>
+        <td>—</td>
+        <td>Native fast path. 90%+ of IPTV.</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">HLS (.m3u8)</td>
+        <td>H.265/HEVC + AAC</td>
+        <td>HLS</td>
+        <td><span style="color: var(--green);">AVPlayer</span></td>
+        <td>—</td>
+        <td>Hardware decoded on A10X+.</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">HLS (.m3u8)</td>
+        <td>H.264 + AC3/EAC3</td>
+        <td>HLS</td>
+        <td><span style="color: var(--green);">AVPlayer</span></td>
+        <td>—</td>
+        <td>Dolby passthrough supported.</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">MPEG-TS (.ts)</td>
+        <td>H.264 + AAC/MP3</td>
+        <td>HTTP direct</td>
+        <td><span style="color: var(--amber);">VLCKit</span></td>
+        <td>AVPlayer (may work)</td>
+        <td>AVPlayer unreliable with raw TS.</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">MPEG-TS (.ts)</td>
+        <td>H.265 + AAC</td>
+        <td>HTTP direct</td>
+        <td><span style="color: var(--amber);">VLCKit</span></td>
+        <td>—</td>
+        <td>Software decode. Higher CPU.</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">MP4 (.mp4)</td>
+        <td>H.264/H.265 + AAC</td>
+        <td>HTTP progressive</td>
+        <td><span style="color: var(--green);">AVPlayer</span></td>
+        <td>VLCKit</td>
+        <td>VOD content. Seekable.</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">MKV (.mkv)</td>
+        <td>Any</td>
+        <td>HTTP progressive</td>
+        <td><span style="color: var(--amber);">VLCKit</span></td>
+        <td>—</td>
+        <td>AVPlayer doesn't support MKV.</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Any</td>
+        <td>Any</td>
+        <td>RTSP</td>
+        <td><span style="color: var(--amber);">VLCKit</span></td>
+        <td>—</td>
+        <td>AVPlayer has no RTSP support.</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Any</td>
+        <td>Any</td>
+        <td>RTMP</td>
+        <td><span style="color: var(--amber);">VLCKit</span></td>
+        <td>—</td>
+        <td>Legacy but still common.</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Any</td>
+        <td>Any</td>
+        <td>UDP multicast</td>
+        <td><span style="color: var(--amber);">VLCKit</span></td>
+        <td>—</td>
+        <td>Local network only.</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Unknown / probe timeout</td>
+        <td>Unknown</td>
+        <td>Any</td>
+        <td><span style="color: var(--green);">AVPlayer</span></td>
+        <td>VLCKit</td>
+        <td>Optimistic default. If probe times out (&gt;500ms), try AVPlayer first.</td>
+      </tr>
+    </table>
+
+    <h4 class="sub-heading" style="border-top: none; padding-top: 0; margin-top: 28px;">Fallback & Retry Policy</h4>
+    <div class="card-grid compact">
+      <div class="card">
+        <div class="card-icon red">🔄</div>
+        <h4>Retry Budget</h4>
+        <p>Max <strong>3 retries</strong> per stream, per engine. Backoff: 1s → 3s → 7s. After 3 failures on the primary engine, attempt fallback engine once. Total max attempts per channel switch: <strong>7</strong> (3 primary + 1 fallback probe + 3 fallback).</p>
+      </div>
+      <div class="card">
+        <div class="card-icon amber">🔀</div>
+        <h4>Fallback Once, Not Forever</h4>
+        <p>Engine fallback happens <strong>once</strong> per stream attempt. No ping-pong between AVPlayer ↔ VLCKit. If both engines fail, show error state. User can manually trigger "Try alternate player" from the error screen.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon cyan">📊</div>
+        <h4>Fallback Telemetry</h4>
+        <p>Every fallback logs: <code style="font-family: 'JetBrains Mono', monospace; font-size: 11px; background: var(--surface-2); padding: 2px 5px; border-radius: 3px;">stream_fallback(from_engine, to_engine, reason_code, container, codec)</code>. Reason codes: <strong>codec_unsupported</strong>, <strong>container_unsupported</strong>, <strong>network_timeout</strong>, <strong>decode_error</strong>, <strong>http_4xx</strong>, <strong>http_5xx</strong>.</p>
+      </div>
+    </div>
+
+    <div class="callout warn" style="margin-top: 12px;">
+      <strong>EPG caching:</strong> XMLTV files can be 50–200 MB. Use incremental SAX-style parsing with SQLite upserts (INSERT OR REPLACE) instead of full-table replacement. Parse in a background thread with progress reporting.
+    </div>
+  </section>
+
+  <!-- 03: FEATURES -->
+  <section id="features">
+    <div class="section-header">
+      <div class="section-num">03 — FEATURES</div>
+      <h3>Feature Map</h3>
+      <p>Features organized by release phase. MVP focuses on rock-solid IPTV playback with Emby basics. Later releases add polish, accessibility, and platform expansion.</p>
+    </div>
+
+    <div class="card-grid">
+      <!-- MVP -->
+      <div class="card">
+        <div class="card-icon green">📡</div>
+        <div style="display: flex; gap: 6px; margin-bottom: 10px;"><span class="tag mvp">MVP</span></div>
+        <h4>M3U Playlist Support</h4>
+        <p>Parse M3U/M3U8 playlists with group/category extraction. Remote and local URLs. Auto-refresh on app launch + background with configurable interval (1–7 days).</p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon green">🔑</div>
+        <div style="display: flex; gap: 6px; margin-bottom: 10px;"><span class="tag mvp">MVP</span></div>
+        <h4>Xtream Codes API</h4>
+        <p>Full Xtream Codes integration — live streams, VOD, series, catch-up. Server URL + username/password auth. Category-based browsing.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon green">🎬</div>
+        <div style="display: flex; gap: 6px; margin-bottom: 10px;"><span class="tag mvp">MVP</span></div>
+        <h4>Emby Integration</h4>
+        <p>Connect via API key or user login. Browse libraries, movies, TV shows, live TV. Resume playback and sync watch status.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon green">▶️</div>
+        <div style="display: flex; gap: 6px; margin-bottom: 10px;"><span class="tag mvp">MVP</span></div>
+        <h4>Native Video Playback</h4>
+        <p>AVPlayer primary + VLCKit fallback. FFprobeKit codec probing for smart player routing. HLS, MPEG-TS, MP4, MKV support. Subtitle support (SRT, SSA, embedded). AirPlay 2 sender built-in.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon green">📺</div>
+        <div style="display: flex; gap: 6px; margin-bottom: 10px;"><span class="tag mvp">MVP</span></div>
+        <h4>EPG Guide</h4>
+        <p>Incremental XMLTV parsing with timeline grid view. Now/next display on channel list. Program details with descriptions. Configurable EPG sources.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon green">⭐</div>
+        <div style="display: flex; gap: 6px; margin-bottom: 10px;"><span class="tag mvp">MVP</span></div>
+        <h4>Favorites & Recents</h4>
+        <p>Star channels/content. Recently watched with resume position (separate WatchProgress entity). Pin to home screen and Top Shelf.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon green">🔢</div>
+        <div style="display: flex; gap: 6px; margin-bottom: 10px;"><span class="tag mvp">MVP</span> <span class="tag new">New</span></div>
+        <h4>Channel Number Entry</h4>
+        <p>Type channel numbers on the Siri Remote to jump directly (e.g. 123 → channel 123). Number overlay with auto-dismiss after 2s inactivity.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon green">🎵</div>
+        <div style="display: flex; gap: 6px; margin-bottom: 10px;"><span class="tag mvp">MVP</span> <span class="tag new">New</span></div>
+        <h4>Now Playing Mini-Bar</h4>
+        <p>Persistent mini-bar at bottom of Home showing current stream (like Apple TV's player). Tap to return to full-screen. Shows channel name, program, and live indicator.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon green">⚡</div>
+        <div style="display: flex; gap: 6px; margin-bottom: 10px;"><span class="tag mvp">MVP</span> <span class="tag new">New</span></div>
+        <h4>Quick Channel Switcher</h4>
+        <p>Swipe down during playback to reveal an overlay with recent/favorite channels for instant switching. Long-press Menu for number entry. Standard in every decent IPTV app — too useful and cheap to defer.</p>
+      </div>
+
+      <!-- v2 -->
+      <div class="card">
+        <div class="card-icon amber">📋</div>
+        <div style="display: flex; gap: 6px; margin-bottom: 10px;"><span class="tag v2">v2</span></div>
+        <h4>Multiple Playlists</h4>
+        <p>Add and manage multiple playlists. Quick-switch dropdown. Per-playlist settings for refresh, EPG, and credentials. Drag-to-reorder, bulk delete.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon amber">🔍</div>
+        <div style="display: flex; gap: 6px; margin-bottom: 10px;"><span class="tag v2">v2</span></div>
+        <h4>Universal Search</h4>
+        <p>Search across all sources — IPTV, Emby, VOD. Fuzzy matching, category filters. Prominent voice dictation button on tvOS. Siri + Compose TV voice input.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon amber">☁️</div>
+        <div style="display: flex; gap: 6px; margin-bottom: 10px;"><span class="tag v2">v2</span></div>
+        <h4>Cloud Sync</h4>
+        <p>Sync playlists, favorites, and watch history via CloudKit. Web dashboard with pairing codes. Playlist management from any browser.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon amber">♿</div>
+        <div style="display: flex; gap: 6px; margin-bottom: 10px;"><span class="tag v2">v2</span> <span class="tag new">New</span></div>
+        <h4>Accessibility</h4>
+        <p>Full VoiceOver labels on all screens. Dynamic Type scaling. Reduce Motion support. High Contrast Mode. Standard SwiftUI components get you 80% for free.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon amber">😴</div>
+        <div style="display: flex; gap: 6px; margin-bottom: 10px;"><span class="tag v2">v2</span> <span class="tag new">New</span></div>
+        <h4>Sleep Timer</h4>
+        <p>15 / 30 / 60 / 90 minute timer accessible from player overlay. Gentle fade-out before stopping playback.</p>
+      </div>
+
+      <!-- v3 -->
+      <div class="card">
+        <div class="card-icon cyan">📺</div>
+        <div style="display: flex; gap: 6px; margin-bottom: 10px;"><span class="tag v3">v3</span></div>
+        <h4>Multiview</h4>
+        <p>Up to 4 simultaneous streams in a grid. Audio switching between streams. PiP on iOS.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon cyan">⏪</div>
+        <div style="display: flex; gap: 6px; margin-bottom: 10px;"><span class="tag v3">v3</span></div>
+        <h4>Catch-Up / Timeshift</h4>
+        <p>Watch previously aired programs via Xtream Codes catch-up. Live rewind / timeshift buffer for providers with HLS sliding window support.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon cyan">📥</div>
+        <div style="display: flex; gap: 6px; margin-bottom: 10px;"><span class="tag v3">v3</span></div>
+        <h4>Downloads & Offline</h4>
+        <p>Download VOD/Emby media for offline viewing. Storage management with quality presets and auto-delete.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon cyan">🧊</div>
+        <div style="display: flex; gap: 6px; margin-bottom: 10px;"><span class="tag v3">v3 (stretch)</span> <span class="tag new">New</span></div>
+        <h4>Jellyfin Support</h4>
+        <p>~95% Emby API compatible. Different auth flow and some media info divergence. Frame as a stretch goal — high upside for moderate extra work.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon cyan">🔒</div>
+        <div style="display: flex; gap: 6px; margin-bottom: 10px;"><span class="tag v3">v3</span> <span class="tag new">New</span></div>
+        <h4>Parental Controls</h4>
+        <p>PIN lock per playlist or per content rating. Restrict access to specific categories or channels. Configurable in Settings.</p>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 12px; margin-top: 24px; align-items: center; font-size: 13px; color: var(--text-dim); flex-wrap: wrap;">
+      <span class="tag mvp">MVP</span> Core release
+      <span class="tag v2">v2</span> Second release
+      <span class="tag v3">v3</span> Future
+      <span class="tag new">New</span> Added in v2 spec
+    </div>
+  </section>
+
+  <!-- 04: SCREEN FLOWS -->
+  <section id="screens">
+    <div class="section-header">
+      <div class="section-num">04 — SCREENS</div>
+      <h3>Screen Flow & Navigation</h3>
+      <p>Core user journeys mapped out. Sidebar navigation on tvOS (platform standard), tab bar on iOS. Includes new overlays and error states.</p>
+    </div>
+
+    <div class="flow-container">
+      <div class="flow-label">Onboarding Flow</div>
+      <div class="flow-row">
+        <div class="flow-node start">App Launch</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">Welcome + Legal Disclaimer</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node decision">Add Source?</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">M3U URL / Xtream / Emby</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node action">Parse & Validate</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node end">Home Screen</div>
+      </div>
+    </div>
+
+    <div class="flow-container" style="margin-top: 16px;">
+      <div class="flow-label">Core Navigation (tvOS Sidebar)</div>
+      <div class="flow-row">
+        <div class="flow-node start">Home</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">Live TV</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">Movies</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">TV Shows</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">Emby Library</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">Favorites</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node end">Settings</div>
+      </div>
+    </div>
+
+    <div class="flow-container" style="margin-top: 16px;">
+      <div class="flow-label">Player Overlay States <span class="tag new" style="font-size: 9px;">New</span></div>
+      <div class="flow-row">
+        <div class="flow-node start">Full-Screen Playback</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node decision">Swipe down?</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node action">Quick Channel Switcher</div>
+      </div>
+      <div class="flow-branch">
+        <div class="flow-node decision">Long-press Menu?</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node action">Channel number entry</div>
+      </div>
+      <div class="flow-branch">
+        <div class="flow-node error">Stream fails?</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node error">Buffering / No Signal state + Retry + "Try VLCKit"</div>
+      </div>
+    </div>
+
+    <h4 class="sub-heading">Screen Inventory</h4>
+    <table class="spec-table">
+      <tr>
+        <th>Screen</th>
+        <th>Purpose</th>
+        <th>Key Components</th>
+        <th>Phase</th>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Onboarding</td>
+        <td>First-run setup with legal disclaimer</td>
+        <td>Hero layout, QR pairing, source type selector, legal disclaimer: "This application is a media player only. It does not provide, host, or recommend any IPTV services, playlists, or content."</td>
+        <td><span class="tag mvp">MVP</span></td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Home</td>
+        <td>Dashboard with recents, favorites, now playing</td>
+        <td>Hero card (parallax), horizontal rows, continue watching, Now Playing mini-bar</td>
+        <td><span class="tag mvp">MVP</span></td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Live TV — Channels</td>
+        <td>Browse channels by category</td>
+        <td>Category sidebar, channel grid, now/next EPG badges, channel number overlay</td>
+        <td><span class="tag mvp">MVP</span></td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Live TV — EPG Grid</td>
+        <td>Timeline-based program guide</td>
+        <td>Time axis, channel rows, program blocks, now marker, voice search button</td>
+        <td><span class="tag mvp">MVP</span></td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Player — Full Screen</td>
+        <td>Video playback with overlay</td>
+        <td>Transport bar, channel info, EPG mini-view, subtitle/audio, quick channel switcher (swipe down)</td>
+        <td><span class="tag mvp">MVP</span></td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Player — Error State</td>
+        <td>Stream failure / buffering</td>
+        <td>Full-screen "No Signal" with auto-retry countdown, manual retry button, "Switch to VLCKit" option</td>
+        <td><span class="tag mvp">MVP</span></td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Movies</td>
+        <td>VOD movie grid from IPTV/Emby</td>
+        <td>Poster grid (parallax on focus), genre filter, sort controls</td>
+        <td><span class="tag mvp">MVP</span></td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">TV Shows</td>
+        <td>Series → Seasons → Episodes</td>
+        <td>Show grid → Season list → Episode list with thumbnails</td>
+        <td><span class="tag mvp">MVP</span></td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Detail View</td>
+        <td>Movie/show info with backdrop</td>
+        <td>Hero image, metadata, play button, related content</td>
+        <td><span class="tag mvp">MVP</span></td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Emby Browser</td>
+        <td>Browse connected Emby libraries</td>
+        <td>Library selector, grid view, continue watching</td>
+        <td><span class="tag mvp">MVP</span></td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Settings</td>
+        <td>App configuration</td>
+        <td>Source management, playback prefs, appearance, section visibility, about</td>
+        <td><span class="tag mvp">MVP</span></td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Add Source</td>
+        <td>Add M3U, Xtream, or Emby connection</td>
+        <td>Source type tabs, form fields, test connection button</td>
+        <td><span class="tag mvp">MVP</span></td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Search</td>
+        <td>Universal search with voice</td>
+        <td>Search bar, voice dictation button, instant results, source filters</td>
+        <td><span class="tag v2">v2</span></td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Multiview</td>
+        <td>2–4 simultaneous streams</td>
+        <td>Grid layout, audio focus switcher, resize controls</td>
+        <td><span class="tag v3">v3</span></td>
+      </tr>
+    </table>
+  </section>
+
+  <!-- 04b: EMPTY / DEGRADED STATES -->
+  <section id="empty-states">
+    <div class="section-header">
+      <div class="section-num">04b — EMPTY & DEGRADED STATES <span class="tag new" style="font-size: 9px; vertical-align: middle;">New</span></div>
+      <h3>Empty / Degraded State Screens</h3>
+      <p>Every one of these states will occur in production. Defining the UI upfront prevents blank screens and developer improvisation.</p>
+    </div>
+
+    <table class="spec-table">
+      <tr>
+        <th style="width: 180px;">State</th>
+        <th>Trigger</th>
+        <th>UI Behavior</th>
+        <th>User Action</th>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">No sources configured</td>
+        <td>First launch, or all sources deleted</td>
+        <td>Full-screen instructional empty state with "Add your first source" hero button. Setup guide explaining M3U, Xtream, and Emby. No demo/sample content shipped.</td>
+        <td>→ Add Source screen</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Playlist imported, zero playable channels</td>
+        <td>M3U parsed but all URLs are invalid or unreachable</td>
+        <td>Show parse result summary: "312 entries found, 0 playable." List top 3 errors. Suggest checking the source URL or trying a different playlist.</td>
+        <td>→ Edit Source / Retry</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">EPG unavailable</td>
+        <td>XMLTV URL fails, times out, or returns empty data</td>
+        <td>Channels are still browsable and playable. EPG badges show "No program info" in muted text. EPG Grid tab shows "Guide data unavailable" with retry button.</td>
+        <td>→ Retry / Edit EPG URL</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Provider auth expired</td>
+        <td>Xtream returns 401/403, Emby token expired</td>
+        <td>Inline banner on affected source's content: "Authentication failed — please re-enter credentials." Other sources continue working normally.</td>
+        <td>→ Edit Source credentials</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Offline / unreachable host</td>
+        <td>No network, or provider server is down</td>
+        <td>Show cached channel list (if available) with "Offline" badge. Playing a channel shows "No connection" error state with auto-retry. Cached EPG data remains visible.</td>
+        <td>→ Auto-retry on reconnect</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Stream buffering / stalled</td>
+        <td>Slow origin, congestion, partial data</td>
+        <td>Spinner overlay with elapsed time counter. After 10s: "Stream is slow — switch to a different quality?" After 30s: show full error state with retry and player-switch options.</td>
+        <td>→ Retry / Switch player</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Empty favorites</td>
+        <td>User hasn't favorited anything yet</td>
+        <td>Favorites section shows: "No favorites yet. Long-press any channel to add it here." Subtle star icon illustration.</td>
+        <td>→ Browse channels</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Empty search results</td>
+        <td>Search query matches nothing</td>
+        <td>"No results for '[query]'" with suggestions: check spelling, try a shorter query, or browse by category.</td>
+        <td>→ Modify query</td>
+      </tr>
+    </table>
+
+    <div class="callout tip" style="margin-top: 20px;">
+      <strong>Design principle:</strong> Every empty state should explain <em>why</em> it's empty and offer exactly <em>one</em> clear action to resolve it. Never show a blank screen.
+    </div>
+  </section>
+
+  <!-- 05: tvOS INTERFACE -->
+  <section id="tvos-ui">
+    <div class="section-header">
+      <div class="section-num">05 — tvOS INTERFACE</div>
+      <h3>tvOS Design Language</h3>
+      <p>Focus-driven navigation with persistent sidebar, large touch targets, parallax effects on focused elements, and a persistent Now Playing mini-bar.</p>
+    </div>
+
+    <div class="tv-frame">
+      <div class="tv-screen">
+        <div class="tv-sidebar">
+          <div style="font-family: 'Fraunces', serif; font-size: 17px; font-weight: 600; margin-bottom: 24px; padding: 0 14px; background: linear-gradient(135deg, var(--accent-glow), var(--cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">StreamDeck</div>
+          <div class="tv-sidebar-item focused"><span class="icon">🏠</span> Home</div>
+          <div class="tv-sidebar-item"><span class="icon">📡</span> Live TV</div>
+          <div class="tv-sidebar-item"><span class="icon">🎬</span> Movies</div>
+          <div class="tv-sidebar-item"><span class="icon">📺</span> TV Shows</div>
+          <div class="tv-sidebar-item"><span class="icon">🗂️</span> Emby</div>
+          <div class="tv-sidebar-item"><span class="icon">⭐</span> Favorites</div>
+          <div style="flex: 1;"></div>
+          <div class="tv-sidebar-item" style="margin-top: auto;"><span class="icon">⚙️</span> Settings</div>
+        </div>
+        <div class="tv-content">
+          <div class="tv-hero-card">
+            <p style="font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; color: var(--accent-glow);">Continue Watching</p>
+            <h4>Channel name or last watched content</h4>
+            <p>Now playing info from EPG • Category</p>
+            <div style="display: flex; gap: 10px; margin-top: 14px;">
+              <div style="padding: 7px 18px; background: white; color: black; border-radius: 8px; font-size: 12.5px; font-weight: 600;">▶ Resume</div>
+              <div style="padding: 7px 18px; background: rgba(255,255,255,0.1); border-radius: 8px; font-size: 12.5px; color: var(--text-muted);">Details</div>
+            </div>
+          </div>
+
+          <div class="tv-row-label">Favorites</div>
+          <div class="tv-channel-row">
+            <div class="tv-channel focused">
+              <span class="ch-name">ESPN</span>
+              <span class="ch-prog">NBA Live</span>
+            </div>
+            <div class="tv-channel">
+              <span class="ch-name">BBC One</span>
+              <span class="ch-prog">News at Ten</span>
+            </div>
+            <div class="tv-channel">
+              <span class="ch-name">HBO</span>
+              <span class="ch-prog">Movie</span>
+            </div>
+            <div class="tv-channel">
+              <span class="ch-name">Discovery</span>
+              <span class="ch-prog">Documentary</span>
+            </div>
+          </div>
+
+          <div class="tv-row-label">Recent Channels</div>
+          <div class="tv-channel-row">
+            <div class="tv-channel">
+              <span class="ch-name">CNN</span>
+              <span class="ch-prog">Breaking News</span>
+            </div>
+            <div class="tv-channel">
+              <span class="ch-name">Fox Sports</span>
+              <span class="ch-prog">NFL Post</span>
+            </div>
+            <div class="tv-channel">
+              <span class="ch-name">Sky News</span>
+              <span class="ch-prog">Report</span>
+            </div>
+            <div class="tv-channel">
+              <span class="ch-name">Nat Geo</span>
+              <span class="ch-prog">Wildlife</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Now Playing Mini-Bar -->
+        <div class="tv-minibar">
+          <div class="minibar-dot"></div>
+          <span class="minibar-text"><strong>ESPN</strong> — NBA: Lakers vs Celtics</span>
+          <span style="margin-left: auto; font-size: 11px; color: var(--text-dim);">Press ▶ to return</span>
+        </div>
+      </div>
+    </div>
+
+    <h4 class="sub-heading">tvOS Design Principles</h4>
+    <div class="card-grid compact">
+      <div class="card">
+        <h4>Focus Engine First</h4>
+        <p>Every interactive element must be focusable. <code style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent-glow); background: var(--surface-2); padding: 2px 6px; border-radius: 4px;">@FocusState</code> and <code style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent-glow); background: var(--surface-2); padding: 2px 6px; border-radius: 4px;">.focusable()</code> for navigation. Focused items scale up with subtle lift shadow.</p>
+      </div>
+      <div class="card">
+        <h4>10-Foot UI Rules</h4>
+        <p>Min text: 29pt body, 38pt titles. Contrast 7:1+. Safe area margins 60pt. No thin borders or fine detail at viewing distance.</p>
+      </div>
+      <div class="card">
+        <h4>Parallax Effects</h4>
+        <p>Apply subtle parallax on hero card and poster/channel tiles on focus. Built into SwiftUI with <code style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent-glow); background: var(--surface-2); padding: 2px 6px; border-radius: 4px;">.hoverEffect()</code> — costs nothing.</p>
+      </div>
+      <div class="card">
+        <h4>Siri Remote Gestures</h4>
+        <p>Swipe to navigate, click to select, press-and-hold for context menus. Menu always goes back. Play/Pause starts/stops from anywhere. Swipe down for quick channel switcher.</p>
+      </div>
+      <div class="card">
+        <h4>Top Shelf Extension</h4>
+        <p>Expose favorites and recents in Apple TV Top Shelf via TV Top Shelf Extension. Sectioned content for categorized display.</p>
+      </div>
+      <div class="card">
+        <h4>AirPlay 2 Sender</h4>
+        <p>Built into AVPlayer for free — just expose the route picker. Lets users cast from iPhone to Apple TV or AirPlay speakers.</p>
+      </div>
+    </div>
+
+    <h4 class="sub-heading">Focus Restoration Rules <span class="tag new" style="font-size: 9px; vertical-align: middle;">New</span></h4>
+    <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">Defines exactly where focus returns after navigating away. This is the #1 tvOS polish differentiator.</p>
+
+    <table class="spec-table">
+      <tr>
+        <th style="width: 200px;">Navigation Event</th>
+        <th>Focus Restores To</th>
+        <th>Notes</th>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Return from full-screen player</td>
+        <td>Last focused channel/program card that initiated playback</td>
+        <td>Store focused index before entering player. Scroll to restore if off-screen.</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Return from Settings</td>
+        <td>Previously focused sidebar item (e.g. "Home", "Live TV")</td>
+        <td>Sidebar selection persists; content area focus restores to last item.</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Return from Search</td>
+        <td>Previous screen's last focus context</td>
+        <td>If search was triggered from EPG grid, restore to same time/channel cell.</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Dismiss Quick Channel Switcher</td>
+        <td>Full-screen player (no focus change)</td>
+        <td>Swipe up or timeout → overlay dismisses, player continues.</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Dismiss Channel Number Entry</td>
+        <td>Full-screen player (channel changes if match found)</td>
+        <td>2s timeout → auto-dismiss. Invalid number → brief "Not found" toast.</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Sidebar collapse (content focused)</td>
+        <td>First focusable item in content area</td>
+        <td>Pressing ← from content → re-expand sidebar with previous selection focused.</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">App backgrounded → foregrounded</td>
+        <td>Exact screen + focus position before backgrounding</td>
+        <td>If stream was playing, resume playback automatically. Show reconnect if stream died.</td>
+      </tr>
+    </table>
+
+    <div class="callout tip" style="margin-top: 16px;">
+      <strong>Conflict resolution:</strong> If both the Quick Channel Switcher and Channel Number Entry are somehow triggered simultaneously, Number Entry wins (higher priority). Dismiss the switcher overlay, show number input.
+    </div>
+  </section>
+
+  <!-- 06: DATA MODEL -->
+  <section id="data-model">
+    <div class="section-header">
+      <div class="section-num">06 — DATA MODEL</div>
+      <h3>Core Data Model</h3>
+      <p>SQLDelight schema with proper identity strategy for surviving playlist refreshes, schema versioning, and a dedicated WatchProgress table. Channels use a three-tier ID system (source → source-native → canonical) to keep favorites and progress stable across provider changes.</p>
+    </div>
+
+    <div class="code-block"><span class="comment">-- StreamDeck Schema v1</span>
+<span class="comment">-- SQLDelight (KMP Shared Layer)</span>
+
+<span class="keyword">PRAGMA</span> foreign_keys = <span class="string">ON</span>; <span class="new-marker">-- NEW</span>
+
+<span class="comment">-- Schema version tracking</span>
+<span class="keyword">CREATE TABLE</span> <span class="type">SchemaVersion</span> ( <span class="new-marker">-- NEW</span>
+    version     <span class="type">INTEGER</span> NOT NULL,
+    applied_at  <span class="type">INTEGER</span> NOT NULL  <span class="comment">-- epoch timestamp</span>
+);
+
+<span class="keyword">INSERT INTO</span> SchemaVersion (version, applied_at) <span class="keyword">VALUES</span> (1, 0);
+
+<span class="comment">-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+<span class="comment">-- Playlists & Sources</span>
+<span class="comment">-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+
+<span class="keyword">CREATE TABLE</span> <span class="type">Playlist</span> (
+    id            <span class="type">TEXT</span> PRIMARY KEY,
+    name          <span class="type">TEXT</span> NOT NULL,
+    type          <span class="type">TEXT</span> NOT NULL,  <span class="comment">-- 'm3u' | 'xtream' | 'emby'</span>
+    url           <span class="type">TEXT</span> NOT NULL,
+    username      <span class="type">TEXT</span>,           <span class="comment">-- Xtream/Emby auth</span>
+    password_ref  <span class="type">TEXT</span>,           <span class="comment">-- Keychain reference key (NOT plaintext)</span>
+    epg_url       <span class="type">TEXT</span>,
+    refresh_hrs   <span class="type">INTEGER</span> DEFAULT 24,
+    last_sync     <span class="type">INTEGER</span>,       <span class="comment">-- epoch timestamp</span>
+    last_epg_sync <span class="type">INTEGER</span>,       <span class="comment">-- epoch timestamp</span> <span class="new-marker">-- NEW</span>
+    last_sync_etag <span class="type">TEXT</span>,        <span class="new-marker">-- NEW: HTTP ETag for conditional refresh</span>
+    last_sync_hash <span class="type">TEXT</span>,        <span class="new-marker">-- NEW: content hash to detect real changes</span>
+    is_active     <span class="type">INTEGER</span> DEFAULT 1,
+    sort_order    <span class="type">INTEGER</span> DEFAULT 0
+);
+
+<span class="comment">-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+<span class="comment">-- Channels</span>
+<span class="comment">-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+
+<span class="keyword">CREATE TABLE</span> <span class="type">Channel</span> (
+    id            <span class="type">TEXT</span> PRIMARY KEY,  <span class="comment">-- app-generated canonical ID</span>
+    playlist_id   <span class="type">TEXT</span> NOT NULL REFERENCES Playlist(id) ON DELETE CASCADE,
+    source_channel_id <span class="type">TEXT</span>,        <span class="new-marker">-- NEW: provider-native ID (survives URL changes)</span>
+    name          <span class="type">TEXT</span> NOT NULL,
+    group_name    <span class="type">TEXT</span>,          <span class="comment">-- category from M3U group-title</span>
+    stream_url    <span class="type">TEXT</span> NOT NULL,
+    logo_url      <span class="type">TEXT</span>,
+    epg_id        <span class="type">TEXT</span>,          <span class="comment">-- maps to XMLTV channel id</span>
+    tvg_id        <span class="type">TEXT</span>,          <span class="comment">-- more reliable XMLTV matching</span>
+    channel_num   <span class="type">INTEGER</span>,
+    is_favorite   <span class="type">INTEGER</span> DEFAULT 0,
+    is_deleted    <span class="type">INTEGER</span> DEFAULT 0, <span class="new-marker">-- NEW: soft delete on provider refresh</span>
+    deleted_at    <span class="type">INTEGER</span>           <span class="new-marker">-- NEW: epoch, purge after 30 days</span>
+);
+
+<span class="comment">-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+<span class="comment">-- VOD Content</span>
+<span class="comment">-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+
+<span class="keyword">CREATE TABLE</span> <span class="type">VodItem</span> (
+    id            <span class="type">TEXT</span> PRIMARY KEY,
+    playlist_id   <span class="type">TEXT</span> NOT NULL REFERENCES Playlist(id) ON DELETE CASCADE,
+    title         <span class="type">TEXT</span> NOT NULL,
+    type          <span class="type">TEXT</span> NOT NULL,  <span class="comment">-- 'movie' | 'series' | 'episode'</span>
+    stream_url    <span class="type">TEXT</span>,
+    poster_url    <span class="type">TEXT</span>,
+    backdrop_url  <span class="type">TEXT</span>,
+    description   <span class="type">TEXT</span>,
+    year          <span class="type">INTEGER</span>,
+    rating        <span class="type">REAL</span>,
+    genre         <span class="type">TEXT</span>,          <span class="comment">-- comma-separated</span>
+    series_id     <span class="type">TEXT</span>,          <span class="comment">-- parent series for episodes</span>
+    season_num    <span class="type">INTEGER</span>,
+    episode_num   <span class="type">INTEGER</span>,
+    duration_s    <span class="type">INTEGER</span>
+);
+
+<span class="comment">-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+<span class="comment">-- Watch Progress (unified for live + VOD)</span> <span class="new-marker">-- NEW TABLE</span>
+<span class="comment">-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+
+<span class="keyword">CREATE TABLE</span> <span class="type">WatchProgress</span> (
+    content_id    <span class="type">TEXT</span> PRIMARY KEY, <span class="comment">-- Channel.id or VodItem.id</span>
+    playlist_id   <span class="type">TEXT</span> REFERENCES Playlist(id) ON DELETE CASCADE,
+    position_ms   <span class="type">INTEGER</span> NOT NULL DEFAULT 0,
+    duration_ms   <span class="type">INTEGER</span>,
+    updated_at    <span class="type">INTEGER</span> NOT NULL <span class="comment">-- epoch timestamp</span>
+);
+
+<span class="comment">-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+<span class="comment">-- EPG Programs</span>
+<span class="comment">-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+
+<span class="keyword">CREATE TABLE</span> <span class="type">EpgProgram</span> (
+    id              <span class="type">TEXT</span> PRIMARY KEY,
+    channel_epg_id  <span class="type">TEXT</span> NOT NULL,
+    title           <span class="type">TEXT</span> NOT NULL,
+    description     <span class="type">TEXT</span>,
+    start_time      <span class="type">INTEGER</span> NOT NULL,
+    end_time        <span class="type">INTEGER</span> NOT NULL,
+    category        <span class="type">TEXT</span>,
+    icon_url        <span class="type">TEXT</span>,
+    <span class="keyword">UNIQUE</span>(channel_epg_id, start_time)  <span class="new-marker">-- NEW: prevents duplicate programs</span>
+);
+
+<span class="comment">-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+<span class="comment">-- Indexes</span>
+<span class="comment">-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+
+<span class="keyword">CREATE INDEX</span> idx_channel_playlist ON Channel(playlist_id);
+<span class="keyword">CREATE INDEX</span> idx_channel_source ON Channel(playlist_id, source_channel_id); <span class="new-marker">-- NEW: identity lookup</span>
+<span class="keyword">CREATE INDEX</span> idx_channel_number ON Channel(playlist_id, channel_num);      <span class="new-marker">-- NEW: number entry</span>
+<span class="keyword">CREATE INDEX</span> idx_channel_favorite ON Channel(is_favorite) <span class="keyword">WHERE</span> is_deleted = 0;
+<span class="keyword">CREATE INDEX</span> idx_channel_tvg ON Channel(tvg_id);
+<span class="keyword">CREATE INDEX</span> idx_channel_active ON Channel(playlist_id) <span class="keyword">WHERE</span> is_deleted = 0; <span class="new-marker">-- NEW</span>
+<span class="keyword">CREATE INDEX</span> idx_epg_channel_time ON EpgProgram(channel_epg_id, start_time);
+<span class="keyword">CREATE INDEX</span> idx_vod_type ON VodItem(type, playlist_id);
+<span class="keyword">CREATE INDEX</span> idx_progress_updated ON WatchProgress(updated_at DESC);</div>
+
+    <div class="callout tip" style="margin-top: 20px;">
+      <strong>Identity strategy:</strong> On playlist refresh, match incoming channels to existing rows via <code style="font-family: 'JetBrains Mono', monospace; font-size: 12px;">playlist_id + source_channel_id</code> (falls back to <code style="font-family: 'JetBrains Mono', monospace; font-size: 12px;">tvg_id</code>, then <code style="font-family: 'JetBrains Mono', monospace; font-size: 12px;">name + group_name</code>). Update the stream URL but keep the canonical <code style="font-family: 'JetBrains Mono', monospace; font-size: 12px;">id</code> stable. This preserves favorites and watch progress across URL rotations. Channels missing from a refresh get soft-deleted (is_deleted=1) rather than hard-deleted — purge after 30 days.
+    </div>
+
+    <div class="callout info" style="margin-top: 12px;">
+      <strong>Migrations:</strong> SQLDelight handles migrations via numbered <code style="font-family: 'JetBrains Mono', monospace; font-size: 12px;">.sqm</code> files (e.g. <code style="font-family: 'JetBrains Mono', monospace; font-size: 12px;">1.sqm</code>, <code style="font-family: 'JetBrains Mono', monospace; font-size: 12px;">2.sqm</code>). The SchemaVersion table provides an additional safety net for manual verification and rollback tracking.
+    </div>
+  </section>
+
+  <!-- 07: ROADMAP -->
+  <section id="roadmap">
+    <div class="section-header">
+      <div class="section-num">07 — ROADMAP</div>
+      <h3>Development Roadmap</h3>
+      <p>Five phases starting with project scaffolding, then tvOS MVP, expanding to iOS, Android TV, and finally a public beta with marketing. ~22 weeks total.</p>
+    </div>
+
+    <div class="timeline">
+      <div class="timeline-item active">
+        <div class="timeline-phase r">Phase 0 — Scaffolding (Week 0–1) <span class="tag new" style="font-size: 9px; vertical-align: middle;">New</span></div>
+        <div class="timeline-title">Project Setup & CI</div>
+        <div class="timeline-desc">Create tvOS project with empty KMP shared module from day 1. Write M3U parser with unit tests against 5+ real-world malformed playlist samples. Set up CI pipeline (GitHub Actions: build tvOS + run parser tests). Configure linting, code signing, and TestFlight.</div>
+        <div class="timeline-features">
+          <span class="tag mvp">KMP Scaffold</span>
+          <span class="tag mvp">M3U Parser Tests</span>
+          <span class="tag mvp">GitHub Actions CI</span>
+          <span class="tag mvp">TestFlight Setup</span>
+        </div>
+      </div>
+
+      <div class="timeline-item active">
+        <div class="timeline-phase g">Phase 1 — Foundation (Weeks 2–7)</div>
+        <div class="timeline-title">tvOS MVP</div>
+        <div class="timeline-desc">Build the core: M3U + Xtream Codes parsing, video player with AVPlayer + VLCKit fallback and FFprobeKit stream probing, tvOS home screen with Now Playing mini-bar, channel list with number entry, full-screen player with overlay and reconnect logic.</div>
+        <div class="timeline-features">
+          <span class="tag mvp">Xtream API</span>
+          <span class="tag mvp">Video Player + Probe</span>
+          <span class="tag mvp">Channel List</span>
+          <span class="tag mvp">EPG Basics</span>
+          <span class="tag mvp">Mini-Bar</span>
+          <span class="tag mvp">Quick Switcher</span>
+          <span class="tag mvp">Reconnect Loop</span>
+        </div>
+      </div>
+
+      <div class="timeline-item active">
+        <div class="timeline-phase g">Phase 2 — Content (Weeks 8–11)</div>
+        <div class="timeline-title">VOD + Emby + Polish</div>
+        <div class="timeline-desc">VOD extraction from playlists, Emby API client for library browsing + playback, EPG grid view with incremental parsing, favorites/recents with WatchProgress, Top Shelf extension, legal disclaimer screen.</div>
+        <div class="timeline-features">
+          <span class="tag mvp">VOD Browser</span>
+          <span class="tag mvp">Emby Client</span>
+          <span class="tag mvp">EPG Grid</span>
+          <span class="tag mvp">Favorites</span>
+          <span class="tag mvp">Top Shelf</span>
+          <span class="tag mvp">Legal Disclaimer</span>
+        </div>
+      </div>
+
+      <div class="timeline-item upcoming">
+        <div class="timeline-phase a">Phase 3 — Companion (Weeks 12–15)</div>
+        <div class="timeline-title">iOS App + Cloud Sync + Accessibility</div>
+        <div class="timeline-desc">Build iOS companion (most SwiftUI views adapt for iPhone/iPad). CloudKit sync for playlists and favorites. Web dashboard for playlist management. Multi-playlist support. Full accessibility pass (VoiceOver, Dynamic Type, Reduce Motion). Sleep timer.</div>
+        <div class="timeline-features">
+          <span class="tag v2">iOS App</span>
+          <span class="tag v2">CloudKit Sync</span>
+          <span class="tag v2">Web Dashboard</span>
+          <span class="tag v2">Accessibility</span>
+          <span class="tag v2">Sleep Timer</span>
+        </div>
+      </div>
+
+      <div class="timeline-item upcoming">
+        <div class="timeline-phase c">Phase 4 — Expansion (Weeks 16–20)</div>
+        <div class="timeline-title">Android TV + Advanced Features</div>
+        <div class="timeline-desc">Extract shared logic to KMP. Build Android TV with Compose for TV (tv-material + tv-foundation). Multiview, catch-up, universal search with voice, downloads. Jellyfin as stretch goal. Parental controls.</div>
+        <div class="timeline-features">
+          <span class="tag v3">Android TV</span>
+          <span class="tag v3">Compose for TV</span>
+          <span class="tag v3">Multiview</span>
+          <span class="tag v3">Catch-Up</span>
+          <span class="tag v3">Downloads</span>
+          <span class="tag v3">Jellyfin (v3 stretch)</span>
+        </div>
+      </div>
+
+      <div class="timeline-item upcoming">
+        <div class="timeline-phase p">Phase 5 — Launch (Weeks 21–23) <span class="tag new" style="font-size: 9px; vertical-align: middle;">New</span></div>
+        <div class="timeline-title">Beta + Marketing + Launch</div>
+        <div class="timeline-desc">Closed beta via TestFlight + Play Store internal track. Collect feedback, fix critical bugs, optimize performance to hit NFR targets. Build marketing site, App Store screenshots + preview video. Public launch.</div>
+        <div class="timeline-features">
+          <span class="tag mvp">TestFlight Beta</span>
+          <span class="tag mvp">Play Store Internal</span>
+          <span class="tag mvp">Marketing Site</span>
+          <span class="tag mvp">App Store Assets</span>
+          <span class="tag mvp">Public Launch</span>
+        </div>
+      </div>
+    </div>
+
+    <h4 class="sub-heading">Phase Exit Criteria <span class="tag new" style="font-size: 9px; vertical-align: middle;">New</span></h4>
+    <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">Engineering cannot declare a phase done without meeting these measurable gates. Prevents "phase complete" from becoming subjective.</p>
+
+    <table class="spec-table">
+      <tr>
+        <th style="width: 130px;">Phase</th>
+        <th>Exit Criteria (all must pass)</th>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Phase 0</td>
+        <td>
+          ✓ tvOS target builds + KMP shared module compiles on CI<br>
+          ✓ M3U parser passes 10+ malformed sample tests (≥95% coverage)<br>
+          ✓ Xtream client passes mock API tests (≥90% coverage)<br>
+          ✓ SQLDelight schema compiles, 3 basic queries execute on in-memory DB<br>
+          ✓ TestFlight internal upload succeeds (even with stub UI)
+        </td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Phase 1</td>
+        <td>
+          ✓ Import M3U succeeds on 5 real-world provider playlists (anonymized)<br>
+          ✓ Channel tune-to-first-frame median &lt;1.5s on Apple TV 4K, &lt;2.5s on Apple TV HD<br>
+          ✓ Player crash-free session rate &gt;99% over 50 test sessions<br>
+          ✓ 20 remote navigation scenarios pass (sidebar, player, overlays, back navigation)<br>
+          ✓ EPG grid renders 200+ channels × 24h without frame drops on Apple TV 4K<br>
+          ✓ Memory never exceeds 450MB during EPG parse + playback (Instruments verified)<br>
+          ✓ Cold start &lt;2.2s with cached 500-channel playlist
+        </td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Phase 2</td>
+        <td>
+          ✓ Emby authentication + library browse works on Emby Server 4.7+<br>
+          ✓ VOD playback with resume position works across app restart<br>
+          ✓ All empty/degraded states (§04b) render correctly<br>
+          ✓ Top Shelf shows favorites within 5s of app background<br>
+          ✓ Legal disclaimer blocks access until accepted
+        </td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Phase 3</td>
+        <td>
+          ✓ iOS companion syncs playlists + favorites via CloudKit within 30s<br>
+          ✓ VoiceOver navigates all screens without dead ends<br>
+          ✓ Universal search returns results from all sources in &lt;500ms<br>
+          ✓ 2-week TestFlight beta with 20+ users, &lt;5 P1 bugs remaining
+        </td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Phase 4+5</td>
+        <td>
+          ✓ Android TV build compiles with shared KMP module (≥40% code reuse)<br>
+          ✓ Multiview renders 4 simultaneous streams without OOM on Apple TV 4K<br>
+          ✓ App Store submission accepted (no rejection)<br>
+          ✓ All NFR targets (§10) pass on lowest-spec device
+        </td>
+      </tr>
+    </table>
+  </section>
+
+  <!-- 08: MONETIZATION -->
+  <section id="monetization">
+    <div class="section-header">
+      <div class="section-num">08 — MONETIZATION</div>
+      <h3>Monetization Strategy</h3>
+      <p>Freemium with clear free-tier limits. Use StoreKit 2 on Apple; add RevenueCat when Android launches. No ads — they signal "cheap app" and revenue is negligible for this category.</p>
+    </div>
+
+    <div class="compare-grid">
+      <div class="compare-col recommended">
+        <div class="compare-header">
+          Free Tier
+          <span class="tag mvp">Default</span>
+        </div>
+        <div class="compare-body">
+          <div class="compare-item"><span class="check">✓</span> 1 playlist</div>
+          <div class="compare-item"><span class="check">✓</span> Full video playback (AVPlayer + VLCKit)</div>
+          <div class="compare-item"><span class="check">✓</span> Basic EPG (list view only, no grid)</div>
+          <div class="compare-item"><span class="check">✓</span> Favorites & recents</div>
+          <div class="compare-item"><span class="check">✓</span> Emby (single server)</div>
+          <div class="compare-item"><span class="cross">✗</span> No cloud sync</div>
+          <div class="compare-item"><span class="cross">✗</span> No multiview</div>
+          <div class="compare-item"><span class="cross">✗</span> No EPG grid view</div>
+          <div style="margin-top: 12px; font-size: 13px; color: var(--text-dim);">
+            Fully functional for casual users. Upgrade path feels natural, not punitive.
+          </div>
+        </div>
+      </div>
+
+      <div class="compare-col">
+        <div class="compare-header">
+          Premium Subscription
+        </div>
+        <div class="compare-body">
+          <div class="compare-item"><span class="check">✓</span> Everything in Free</div>
+          <div class="compare-item"><span class="check">✓</span> Unlimited playlists</div>
+          <div class="compare-item"><span class="check">✓</span> Full EPG grid view</div>
+          <div class="compare-item"><span class="check">✓</span> Cloud sync across devices</div>
+          <div class="compare-item"><span class="check">✓</span> Multiview (up to 4)</div>
+          <div class="compare-item"><span class="check">✓</span> Multiple Emby servers</div>
+          <div class="compare-item"><span class="check">✓</span> Web dashboard access</div>
+          <div style="margin-top: 12px; font-size: 13px; color: var(--text-dim);">
+            $1.99/mo · $14.99/yr · $39.99 lifetime
+          </div>
+        </div>
+      </div>
+
+      <div class="compare-col">
+        <div class="compare-header">Implementation Notes</div>
+        <div class="compare-body">
+          <div class="compare-item"><span class="check">✓</span> StoreKit 2 for Apple platforms (v1)</div>
+          <div class="compare-item"><span class="check">✓</span> Add RevenueCat when Android launches (v3)</div>
+          <div class="compare-item"><span class="check">✓</span> Family Sharing enabled</div>
+          <div class="compare-item"><span class="check">✓</span> Restore purchases on all devices</div>
+          <div class="compare-item"><span class="cross">✗</span> No ads — ever</div>
+          <div class="callout tip" style="margin-top: 12px; font-size: 12px;">
+            <strong>Why no ads:</strong> Ads in a media player signal low quality and the revenue is negligible. A clean free tier drives downloads and reviews; the subscription drives actual revenue.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h4 class="sub-heading">Feature Entitlement Matrix <span class="tag new" style="font-size: 9px; vertical-align: middle;">New</span></h4>
+    <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">Exact feature gating by entitlement key. Used directly in code for <code style="font-family: 'JetBrains Mono', monospace; font-size: 11px; background: var(--surface-2); padding: 2px 5px; border-radius: 3px;">SubscriptionManager.hasEntitlement()</code> checks.</p>
+
+    <table class="spec-table">
+      <tr>
+        <th>Feature</th>
+        <th>Entitlement Key</th>
+        <th>Free</th>
+        <th>Premium</th>
+        <th>Gating Behavior</th>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Playlists</td>
+        <td><code style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">multi_playlist</code></td>
+        <td>1 source</td>
+        <td>Unlimited</td>
+        <td>"Add Source" disabled with upgrade prompt after 1st</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Emby servers</td>
+        <td><code style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">multi_emby</code></td>
+        <td>1 server</td>
+        <td>Unlimited</td>
+        <td>Same as playlists — upgrade prompt on 2nd add</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">EPG Grid view</td>
+        <td><code style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">epg_grid</code></td>
+        <td>List only</td>
+        <td>Full grid</td>
+        <td>Grid tab shows blurred preview with "Upgrade for full guide"</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Cloud Sync</td>
+        <td><code style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">cloud_sync</code></td>
+        <td>—</td>
+        <td>✓</td>
+        <td>Sync toggle hidden in Settings for free tier</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Multiview</td>
+        <td><code style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">multiview</code></td>
+        <td>—</td>
+        <td>Up to 4</td>
+        <td>Button not shown for free tier</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Video playback</td>
+        <td>—</td>
+        <td>✓ Full</td>
+        <td>✓ Full</td>
+        <td>Never gated. Playback quality is never downgraded.</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Favorites / Recents</td>
+        <td>—</td>
+        <td>✓ Full</td>
+        <td>✓ Full</td>
+        <td>Never gated.</td>
+      </tr>
+    </table>
+
+    <div class="callout info" style="margin-top: 16px;">
+      <strong>StoreKit 2 implementation:</strong> No trial period in v1 — the free tier <em>is</em> the trial. Restore purchases via <code style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">Transaction.currentEntitlements</code> on every app launch. Grace period for billing failures: 16 days (Apple default). Family Sharing enabled. Add RevenueCat only when Android launches — StoreKit 2 is sufficient for Apple-only.
+    </div>
+  </section>
+  <section id="compliance">
+    <div class="section-header">
+      <div class="section-num">09a — LEGAL & COMPLIANCE <span class="tag new" style="font-size: 9px; vertical-align: middle;">New</span></div>
+      <h3>App Store Compliance Posture</h3>
+      <p>IPTV apps face heightened scrutiny during App Store review. This section documents exactly what the app does and doesn't do, and how to handle the review process.</p>
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon green">✅</div>
+        <h4>What the App Does</h4>
+        <ul>
+          <li>Client/player for user-provided media sources</li>
+          <li>Emby media server browser and player</li>
+          <li>EPG viewer for user-provided XMLTV data</li>
+          <li>Organize and bookmark user's own content</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-icon red">🚫</div>
+        <h4>What the App Does NOT Do</h4>
+        <ul>
+          <li>Provide, host, or distribute any media content</li>
+          <li>Recommend, list, or link to IPTV providers</li>
+          <li>Include any bundled playlists, channels, or streams</li>
+          <li>Facilitate access to pirated or unauthorized content</li>
+          <li>Ship with demo/sample content (even for review mode)</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-icon amber">📋</div>
+        <h4>App Store Submission Notes</h4>
+        <ul>
+          <li>Review notes: "This app is a media player similar to VLC. It does not provide content. To test, you may use any publicly available M3U playlist or an Emby demo server."</li>
+          <li>Include Emby demo server credentials in review notes</li>
+          <li>DMCA takedown contact listed in app metadata</li>
+          <li>Privacy policy URL in App Store Connect</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-icon purple">⚖️</div>
+        <h4>In-App Legal Disclaimer</h4>
+        <p>Shown on first launch (mandatory accept before setup):</p>
+        <p style="margin-top: 8px; padding: 10px; background: var(--surface-2); border-radius: 6px; font-size: 12px; font-style: italic; color: var(--text);">"This application is a media player only. It does not provide, host, or recommend any IPTV services, playlists, or content. Users are solely responsible for the legality of any sources they add."</p>
+      </div>
+    </div>
+
+    <div class="callout warn" style="margin-top: 20px;">
+      <strong>No "suspend accounts" in MVP:</strong> The v1 risk mitigation previously referenced "suspending offending accounts" — but there are no user accounts in MVP. Revised posture: the app stores no server-side data, has no backend, and cannot monitor or moderate what users add locally. DMCA process applies only to any web properties (marketing site, support docs).
+    </div>
+
+    <div class="callout danger" style="margin-top: 12px;">
+      <strong>No demo/sample playlists:</strong> Some guides suggest shipping a "review mode" playlist for App Store reviewers. Don't. Reviewers have rejected apps for including sample content because it looks like the app provides content. Instead, provide Emby demo server credentials in the review notes and link to freely available test streams.
+    </div>
+  </section>
+
+  <!-- 09b: RISKS & MITIGATIONS -->
+  <section id="risks">
+    <div class="section-header">
+      <div class="section-num">09 — RISKS & MITIGATIONS</div>
+      <h3>Risks & Mitigations</h3>
+      <p>Key technical and business risks with concrete mitigation strategies. IPTV apps have unique challenges around content policy, provider reliability, and App Store review.</p>
+    </div>
+
+    <div class="risk-row header">
+      <div class="risk-cell">Severity</div>
+      <div class="risk-cell">Risk</div>
+      <div class="risk-cell">Mitigation</div>
+      <div class="risk-cell">Phase</div>
+    </div>
+    <div class="risk-row">
+      <div class="risk-cell"><span class="severity-high">HIGH</span></div>
+      <div class="risk-cell">App Store rejection — IPTV apps face scrutiny around piracy enablement</div>
+      <div class="risk-cell">Legal disclaimer on first launch: "This application is a media player only. It does not provide, host, or recommend any IPTV services, playlists, or content. Users are solely responsible for the legality of any sources they add." DMCA takedown process documented. Offending accounts suspended. No default playlists shipped. Document in App Store submission notes.</div>
+      <div class="risk-cell"><span class="tag mvp">MVP</span></div>
+    </div>
+    <div class="risk-row">
+      <div class="risk-cell"><span class="severity-high">HIGH</span></div>
+      <div class="risk-cell">Large EPG files (50–200 MB) cause memory spikes, OOM crashes on Apple TV HD</div>
+      <div class="risk-cell">Incremental SAX-style parsing. Stream directly to SQLite with INSERT OR REPLACE (upsert). Background thread with progress reporting. Cap memory via chunked reads. Purge EPG data older than 7 days.</div>
+      <div class="risk-cell"><span class="tag mvp">MVP</span></div>
+    </div>
+    <div class="risk-row">
+      <div class="risk-cell"><span class="severity-high">HIGH</span></div>
+      <div class="risk-cell">Flaky IPTV providers — streams drop, timeout, or return 403s unpredictably</div>
+      <div class="risk-cell">Automatic reconnect with exponential backoff (3 retries). Player fallback chain (AVPlayer → VLCKit). User-visible "No Signal" state with manual retry and player-switch option.</div>
+      <div class="risk-cell"><span class="tag mvp">MVP</span></div>
+    </div>
+    <div class="risk-row">
+      <div class="risk-cell"><span class="severity-med">MED</span></div>
+      <div class="risk-cell">Provider API changes break Xtream Codes or Emby integration</div>
+      <div class="risk-cell">Versioned parsers with protocol adapters. Feature flags to disable broken integrations without app update. Graceful degradation (show error, don't crash).</div>
+      <div class="risk-cell"><span class="tag v2">v2</span></div>
+    </div>
+    <div class="risk-row">
+      <div class="risk-cell"><span class="severity-med">MED</span></div>
+      <div class="risk-cell">Malformed M3U playlists in the wild (encoding issues, missing fields, non-standard tags)</div>
+      <div class="risk-cell">Unit tests against 10+ real-world malformed samples collected during Phase 0. Lenient parser that skips invalid entries instead of failing entirely. Error count reported to user.</div>
+      <div class="risk-cell"><span class="tag mvp">MVP</span></div>
+    </div>
+    <div class="risk-row">
+      <div class="risk-cell"><span class="severity-med">MED</span></div>
+      <div class="risk-cell">CloudKit sync conflicts when editing playlists on multiple devices simultaneously</div>
+      <div class="risk-cell">Last-write-wins with conflict detection UI. User can choose which version to keep. Sync metadata includes device ID and timestamp for audit trail.</div>
+      <div class="risk-cell"><span class="tag v2">v2</span></div>
+    </div>
+    <div class="risk-row">
+      <div class="risk-cell"><span class="severity-med">MED</span></div>
+      <div class="risk-cell">VLCKit integration increases binary size (~18–25 MB) and may draw additional App Store review scrutiny</div>
+      <div class="risk-cell">Make VLCKit optional via on-demand resources (downloaded on first fallback). Document in App Store submission notes that it's a user-initiated fallback only. Consider stripping unused VLC codecs to reduce size.</div>
+      <div class="risk-cell"><span class="tag mvp">MVP</span></div>
+    </div>
+    <div class="risk-row">
+      <div class="risk-cell"><span class="severity-low">LOW</span></div>
+      <div class="risk-cell">Jellyfin API divergence from Emby (auth flow, some media endpoints)</div>
+      <div class="risk-cell">Abstract behind a MediaServerProtocol interface. Jellyfin adapter handles auth differences. Feature-flag behind beta toggle. Ship only when 90%+ of test library works.</div>
+      <div class="risk-cell"><span class="tag v3">v3</span></div>
+    </div>
+  </section>
+
+  <!-- 10: NON-FUNCTIONAL REQUIREMENTS -->
+  <section id="nfr">
+    <div class="section-header">
+      <div class="section-num">10 — NON-FUNCTIONAL REQUIREMENTS</div>
+      <h3>Performance Targets</h3>
+      <p>Hard targets that the app must meet before shipping each phase. Tested on the lowest-spec supported device (Apple TV HD, A8 chip).</p>
+    </div>
+
+    <div class="nfr-grid">
+      <div class="nfr-card">
+        <div class="nfr-value green">60fps</div>
+        <div class="nfr-label">UI Frame Rate</div>
+        <div class="nfr-detail">All scrolling, focus transitions, and navigation on Apple TV 4K (A12+). 30fps minimum on Apple TV HD (A8).</div>
+      </div>
+      <div class="nfr-card">
+        <div class="nfr-value amber">&lt;2.2s</div>
+        <div class="nfr-label">Cold Start</div>
+        <div class="nfr-detail">From app icon tap to home screen rendered with cached playlist data. First launch with parsing may be longer.</div>
+      </div>
+      <div class="nfr-card">
+        <div class="nfr-value cyan">&lt;450MB</div>
+        <div class="nfr-label">Max Memory (tvOS)</div>
+        <div class="nfr-detail">Peak memory during EPG parsing + video playback. tvOS kills apps aggressively above ~500MB.</div>
+      </div>
+      <div class="nfr-card">
+        <div class="nfr-value purple">&lt;1.5s</div>
+        <div class="nfr-label">Channel Switch</div>
+        <div class="nfr-detail">Time from selecting a new channel to first video frame. Includes probe + player init. Target &lt;800ms for HLS streams.</div>
+      </div>
+      <div class="nfr-card">
+        <div class="nfr-value green">&lt;200ms</div>
+        <div class="nfr-label">Stream Probe</div>
+        <div class="nfr-detail">FFprobeKit codec detection. Must complete before player selection to avoid visible fallback delay.</div>
+      </div>
+      <div class="nfr-card">
+        <div class="nfr-value amber">3 gen</div>
+        <div class="nfr-label">Device Support</div>
+        <div class="nfr-detail">Apple TV HD (A8), Apple TV 4K 1st (A10X), 2nd (A12), 3rd (A15). iPhone 12+ and iPad Air 4+.</div>
+      </div>
+      <div class="nfr-card">
+        <div class="nfr-value cyan">&lt;38°C</div>
+        <div class="nfr-label">Thermal Headroom (iOS)</div>
+        <div class="nfr-detail">Sustained playback must not trigger thermal throttling. Monitor via ProcessInfo.thermalState. Reduce decode quality if .serious is reached.</div>
+      </div>
+    </div>
+
+    <div class="callout warn" style="margin-top: 24px;">
+      <strong>Testing protocol:</strong> Run Instruments (Time Profiler + Allocations) on Apple TV HD before every release. If any NFR target is missed, it blocks the release. No exceptions.
+    </div>
+
+    <h4 class="sub-heading">Measurement Methodology <span class="tag new" style="font-size: 9px; vertical-align: middle;">New</span></h4>
+    <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">Without consistent definitions, NFR targets are impossible to compare and will cause disagreements. These are the canonical measurement conditions.</p>
+
+    <table class="spec-table">
+      <tr>
+        <th style="width: 160px;">Parameter</th>
+        <th>Definition</th>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Test Devices</td>
+        <td>Apple TV HD (A8, 32GB) — worst case baseline. Apple TV 4K 3rd gen (A15) — target device. iPhone 14 Pro — iOS companion.</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Network Conditions</td>
+        <td>LAN (baseline), 50ms latency (simulated via Network Link Conditioner), 2% packet loss (stress test). All NFR targets measured on LAN unless noted.</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Stream Corpus</td>
+        <td>Small: 50 channels, no EPG. Medium: 500 channels + 20MB XMLTV. Large: 5,000 channels + 150MB XMLTV. NFR targets must pass on Medium corpus.</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Cold Start</td>
+        <td>App killed via task switcher → tap icon → home screen fully rendered with cached playlist data and first row of channel tiles visible. Measured with Instruments.</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Warm Start</td>
+        <td>App backgrounded (not killed) → foregrounded. Not an NFR target but should be &lt;300ms.</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Channel Switch Latency</td>
+        <td>Tap on channel tile → first decoded video frame rendered. Includes probe time + player init + stream buffer. Measured via os_signpost spans.</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Memory</td>
+        <td>Peak physical memory footprint during worst-case operation (EPG parse of Large corpus + simultaneous HLS playback). Measured via Instruments Allocations.</td>
+      </tr>
+    </table>
+
+    <h4 class="sub-heading">Testing Strategy</h4>
+    <div class="card-grid compact">
+      <div class="card">
+        <div class="card-icon green">🧪</div>
+        <h4>Unit Tests</h4>
+        <p>100% coverage on parsers (M3U, Xtream, XMLTV) and all use cases in the KMP shared layer. Run on every CI commit. Test against 10+ real-world malformed playlist samples.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon amber">📱</div>
+        <h4>UI Tests</h4>
+        <p>XCUITest for tvOS focus navigation, player state transitions, onboarding flow, and channel switching. Compose UI Test for Android TV equivalents.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon cyan">🔧</div>
+        <h4>Manual Testing</h4>
+        <p>Real hardware: Apple TV HD + Apple TV 4K (3rd gen). Minimum 3 different IPTV providers with varying stream quality and formats. Emby server with 500+ items.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon purple">🚀</div>
+        <h4>Beta Program</h4>
+        <p>2-week closed TestFlight with ~20 power users before each public release. Structured feedback form covering playback reliability, UI responsiveness, and missing features.</p>
+      </div>
+    </div>
+
+    <h4 class="sub-heading">Provider Chaos Tests <span class="tag new" style="font-size: 9px; vertical-align: middle;">New</span></h4>
+    <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">IPTV providers are unreliable by nature. These tests directly validate the risks identified in §09b.</p>
+
+    <table class="spec-table">
+      <tr>
+        <th style="width: 200px;">Chaos Scenario</th>
+        <th>How to Simulate</th>
+        <th>Expected Behavior</th>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Intermittent 401 / 403</td>
+        <td>Local proxy returning 403 on every 3rd request</td>
+        <td>Retry succeeds on next attempt. Auth-expired banner if 3 consecutive 401s.</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Truncated playlist download</td>
+        <td>Proxy drops connection at 50% of M3U file</td>
+        <td>Parse what was received (partial success). Report "X of Y entries parsed" with warning.</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Truncated XMLTV</td>
+        <td>Cut XML mid-tag at 30MB of a 100MB file</td>
+        <td>Parse completes with partial data. No crash. Programs up to cut point are available.</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Slow origin / stall</td>
+        <td>Network Link Conditioner: 500ms latency + 1 KB/s throttle</td>
+        <td>Buffering spinner after 2s. "Stream is slow" prompt after 10s. Error state after 30s.</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Channel URL changes after refresh</td>
+        <td>Serve playlist with same channel names but different stream URLs</td>
+        <td>Channels update in-place (identity preserved via source_channel_id). Favorites and progress intact.</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Malformed / giant logos</td>
+        <td>Logo URLs pointing to 404, 10MB PNG, or HTML page</td>
+        <td>Placeholder icon shown. No memory spike. Image load timeout at 5s.</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Clock skew in EPG data</td>
+        <td>XMLTV with UTC timestamps but device in UTC+5 with wrong timezone</td>
+        <td>EPG times display correctly in local timezone. "Now" marker accurate. Programs not misaligned.</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">Reconnect loop</td>
+        <td>Stream drops every 15s for 2 minutes</td>
+        <td>Auto-reconnect fires up to 3 times per drop. After persistent failure, error state with manual controls. No infinite reconnect loop.</td>
+      </tr>
+    </table>
+  </section>
+
+  <!-- 11: ANALYTICS & PRIVACY -->
+  <section id="analytics">
+    <div class="section-header">
+      <div class="section-num">11 — ANALYTICS & PRIVACY</div>
+      <h3>Analytics & Crash Reporting</h3>
+      <p>Privacy-first approach. No user tracking without explicit consent. Minimal analytics focused on stability and feature adoption, not surveillance.</p>
+    </div>
+
+    <div class="card-grid compact">
+      <div class="card">
+        <div class="card-icon red">💥</div>
+        <h4>Crash Reporting</h4>
+        <p>Firebase Crashlytics for both Apple and Android. Captures crash stack traces, device info, and OS version. No PII collected. Enabled by default (standard practice).</p>
+      </div>
+      <div class="card">
+        <div class="card-icon amber">📊</div>
+        <h4>Custom Events</h4>
+        <p>Minimal set of anonymous events:</p>
+        <ul>
+          <li>playlist_added (type: m3u/xtream/emby)</li>
+          <li>playback_started (player: avplayer/vlckit)</li>
+          <li>playback_error (error_code, player)</li>
+          <li>stream_fallback (from → to player)</li>
+          <li>channel_switch_time_ms</li>
+          <li>epg_parse_duration_ms</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-icon green">🔒</div>
+        <h4>Privacy Commitments</h4>
+        <p>No tracking of what users watch. No stream URLs logged. No analytics without opt-in (except crash reports). No third-party ad SDKs. App Store privacy label: "Data Not Linked to You."</p>
+      </div>
+      <div class="card">
+        <div class="card-icon purple">📋</div>
+        <h4>App Store Privacy Label</h4>
+        <p>Data collected but not linked to identity:</p>
+        <ul>
+          <li>Identifiers (anonymous user ID)</li>
+          <li>Usage Data (feature interaction counts)</li>
+          <li>Diagnostics (crashes, performance)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout tip" style="margin-top: 24px;">
+      <strong>Implementation:</strong> Wrap all analytics calls behind an <code style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--green); background: var(--green-dim); padding: 2px 6px; border-radius: 4px;">AnalyticsService</code> protocol in KMP. This lets you swap Firebase for another provider without touching feature code. Add a Settings toggle for users to opt out of all analytics (except crash reports).
+    </div>
+
+    <h4 class="sub-heading">Event Dictionary <span class="tag new" style="font-size: 9px; vertical-align: middle;">New</span></h4>
+    <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">Complete event catalog with PII audit. URLs, provider names, and channel metadata can accidentally leak into logs — the PII column forces a review.</p>
+
+    <table class="spec-table">
+      <tr>
+        <th>Event Name</th>
+        <th>Payload Fields</th>
+        <th>PII?</th>
+        <th>User Toggle</th>
+        <th>Purpose</th>
+        <th style="width: 70px;">Retention</th>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">app_launched</td>
+        <td>cold_start_ms, device_model, os_version, app_version</td>
+        <td><span style="color: var(--green);">No</span></td>
+        <td>Analytics opt-in</td>
+        <td>Performance</td>
+        <td>90 days</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">playlist_added</td>
+        <td>source_type (m3u/xtream/emby), channel_count</td>
+        <td><span style="color: var(--green);">No</span></td>
+        <td>Analytics opt-in</td>
+        <td>Feature adoption</td>
+        <td>90 days</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">playback_started</td>
+        <td>player_engine (avplayer/vlckit), container, codec, protocol</td>
+        <td><span style="color: var(--green);">No</span></td>
+        <td>Analytics opt-in</td>
+        <td>Quality</td>
+        <td>90 days</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">playback_error</td>
+        <td>error_code, player_engine, container, codec</td>
+        <td><span style="color: var(--green);">No</span></td>
+        <td>Analytics opt-in</td>
+        <td>Quality</td>
+        <td>90 days</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">stream_fallback</td>
+        <td>from_engine, to_engine, reason_code, container, codec</td>
+        <td><span style="color: var(--green);">No</span></td>
+        <td>Analytics opt-in</td>
+        <td>Quality</td>
+        <td>90 days</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">channel_switch</td>
+        <td>latency_ms, probe_ms, player_engine</td>
+        <td><span style="color: var(--green);">No</span></td>
+        <td>Analytics opt-in</td>
+        <td>Performance</td>
+        <td>90 days</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">epg_parsed</td>
+        <td>duration_ms, program_count, file_size_mb</td>
+        <td><span style="color: var(--green);">No</span></td>
+        <td>Analytics opt-in</td>
+        <td>Performance</td>
+        <td>90 days</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">subscription_event</td>
+        <td>event_type (start/renew/cancel/restore), plan_id</td>
+        <td><span style="color: var(--green);">No</span></td>
+        <td>Always on</td>
+        <td>Billing</td>
+        <td>1 year</td>
+      </tr>
+      <tr>
+        <td style="color: var(--text); font-weight: 500;">crash_report</td>
+        <td>stack_trace, device_model, os_version, app_version</td>
+        <td><span style="color: var(--green);">No</span></td>
+        <td>Always on</td>
+        <td>Stability</td>
+        <td>90 days</td>
+      </tr>
+    </table>
+
+    <div class="callout danger" style="margin-top: 16px;">
+      <strong>PII rules — never log these:</strong> Stream URLs (contain auth tokens), playlist URLs (contain provider info), channel names (can identify user content), Emby server addresses, usernames, passwords, IP addresses. If any of these appear in crash logs, redact before upload. Use a <code style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">LogSanitizer</code> filter in the logging pipeline.
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <section style="text-align: center; padding: 80px 60px; border-bottom: none;">
+    <p style="font-size: 13px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 12px;">End of Design Specification v2.1</p>
+    <p style="font-size: 15px; color: var(--text-muted);">16 sections · 21 features · 5 phases · Capability matrix · Identity strategy · Exit criteria · Chaos tests · Event dictionary</p>
+    <p style="font-size: 13px; color: var(--text-dim); margin-top: 8px;">Phase 0 task tracker ready. M3U parser built and tested.</p>
+  </section>
+
+</main>
+
+<script>
+  function setActive(el) {
+    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+    el.classList.add('active');
+  }
+
+  const sections = document.querySelectorAll('section, .hero');
+  const navLinks = document.querySelectorAll('.nav-link');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const id = entry.target.id;
+        navLinks.forEach(link => {
+          link.classList.toggle('active', link.getAttribute('href') === '#' + id);
+        });
+      }
+    });
+  }, { threshold: 0.2 });
+
+  sections.forEach(s => { if (s.id) observer.observe(s); });
+</script>
+
+</body>
+</html>
