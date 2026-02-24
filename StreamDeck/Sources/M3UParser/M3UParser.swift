@@ -66,7 +66,7 @@ public final class M3UParser: Sendable {
         // Strip BOM bytes if present
         var raw = data
         if raw.starts(with: [0xEF, 0xBB, 0xBF]) {
-            raw = raw.dropFirst(3) as! Data
+            raw = Data(raw.dropFirst(3))
         }
 
         // Try UTF-8 first (most common)
@@ -254,8 +254,10 @@ public final class M3UParser: Sendable {
         var rest = afterColon
 
         // Duration is everything up to the first space or comma
-        if let match = afterColon.firstMatch(of: /^(-?\d+)/) {
-            duration = Int(match.1) ?? -1
+        let durationPattern = try! Regex(#"^(-?\d+)"#)
+        if let match = afterColon.firstMatch(of: durationPattern),
+           let captured = match[1].substring {
+            duration = Int(captured) ?? -1
             rest = String(afterColon[match.range.upperBound...])
         }
 
@@ -284,10 +286,12 @@ public final class M3UParser: Sendable {
         var attrs: [String: String] = [:]
 
         // Regex: word-chars/hyphens = "quoted value" or 'quoted value'
-        let pattern = /([a-zA-Z][a-zA-Z0-9_-]*)=["']([^"']*)["']/
+        let pattern = try! Regex(#"([a-zA-Z][a-zA-Z0-9_-]*)=["']([^"']*)["']"#)
         for match in text.matches(of: pattern) {
-            let key = String(match.1).lowercased()
-            let value = String(match.2)
+            guard let keyRange = match[1].substring,
+                  let valueRange = match[2].substring else { continue }
+            let key = String(keyRange).lowercased()
+            let value = String(valueRange)
             attrs[key] = value
         }
 
