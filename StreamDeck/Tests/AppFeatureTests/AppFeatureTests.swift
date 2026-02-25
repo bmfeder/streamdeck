@@ -119,11 +119,15 @@ final class AppFeatureTests: XCTestCase {
         }
     }
 
-    func testSettingsOnAppear_passesThrough() async {
+    func testSettingsOnAppear_loadsPlaylists() async {
         let store = TestStore(initialState: AppFeature.State()) {
             AppFeature()
+        } withDependencies: {
+            $0.vodListClient.fetchPlaylists = { [] }
         }
+        store.exhaustivity = .off
         await store.send(.settings(.onAppear))
+        await store.skipReceivedActions()
     }
 
     // MARK: - Settings → Add Playlist

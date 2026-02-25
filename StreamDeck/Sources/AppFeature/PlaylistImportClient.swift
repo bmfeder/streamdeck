@@ -29,6 +29,9 @@ public struct PlaylistImportClient: Sendable {
         _ password: String,
         _ name: String
     ) async throws -> PlaylistImportResult
+
+    /// Delete a playlist and all its associated content (channels, VOD, progress).
+    public var deletePlaylist: @Sendable (_ id: String) async throws -> Void
 }
 
 // MARK: - Dependency Registration
@@ -36,8 +39,9 @@ public struct PlaylistImportClient: Sendable {
 extension PlaylistImportClient: DependencyKey {
     public static var liveValue: PlaylistImportClient {
         let dbManager = try! DatabaseManager(path: Self.databasePath())
+        let playlistRepo = PlaylistRepository(dbManager: dbManager)
         let service = PlaylistImportService(
-            playlistRepo: PlaylistRepository(dbManager: dbManager),
+            playlistRepo: playlistRepo,
             channelRepo: ChannelRepository(dbManager: dbManager),
             vodRepo: VodRepository(dbManager: dbManager)
         )
@@ -60,6 +64,9 @@ extension PlaylistImportClient: DependencyKey {
                     password: password,
                     name: name
                 )
+            },
+            deletePlaylist: { id in
+                try playlistRepo.delete(id: id)
             }
         )
     }
@@ -68,7 +75,8 @@ extension PlaylistImportClient: DependencyKey {
         PlaylistImportClient(
             importM3U: unimplemented("PlaylistImportClient.importM3U"),
             importXtream: unimplemented("PlaylistImportClient.importXtream"),
-            importEmby: unimplemented("PlaylistImportClient.importEmby")
+            importEmby: unimplemented("PlaylistImportClient.importEmby"),
+            deletePlaylist: unimplemented("PlaylistImportClient.deletePlaylist")
         )
     }
 
