@@ -14,6 +14,7 @@ let package = Package(
         .library(name: "XMLTVParser", targets: ["XMLTVParser"]),
         .library(name: "Database", targets: ["Database"]),
         .library(name: "AppFeature", targets: ["AppFeature"]),
+        .library(name: "Repositories", targets: ["Repositories"]),
     ],
     dependencies: [
         .package(
@@ -80,6 +81,16 @@ let package = Package(
             name: "AppFeatureTests",
             dependencies: ["AppFeature"],
             path: "Tests/AppFeatureTests"
+        ),
+        .target(
+            name: "Repositories",
+            dependencies: ["Database", "M3UParser", "XtreamClient"],
+            path: "Sources/Repositories"
+        ),
+        .testTarget(
+            name: "RepositoryTests",
+            dependencies: ["Repositories"],
+            path: "Tests/RepositoryTests"
         ),
     ]
 )
