@@ -68,6 +68,15 @@ public struct PlaylistRepository: Sendable {
         }
     }
 
+    /// Updates the EPG sync timestamp for a playlist.
+    public func updateEpgSyncTimestamp(_ playlistID: String, timestamp: Int) throws {
+        try dbManager.dbQueue.write { db in
+            guard var record = try PlaylistRecord.fetchOne(db, key: playlistID) else { return }
+            record.lastEpgSync = timestamp
+            try record.update(db)
+        }
+    }
+
     /// Returns true if the playlist needs a refresh based on its refreshHrs interval.
     /// A playlist needs refresh if it has never been synced or if
     /// `lastSync + (refreshHrs * 3600)` is less than the current time.

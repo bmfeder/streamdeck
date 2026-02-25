@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import Repositories
 import SwiftUI
 
 @Reducer
@@ -17,6 +18,8 @@ public struct SettingsFeature {
         case addPlaylist(PresentationAction<AddPlaylistFeature.Action>)
     }
 
+    @Dependency(\.epgClient) var epgClient
+
     public init() {}
 
     public var body: some ReducerOf<Self> {
@@ -30,8 +33,11 @@ public struct SettingsFeature {
             case .addXtreamTapped:
                 state.addPlaylist = AddPlaylistFeature.State(sourceType: .xtream)
                 return .none
-            case .addPlaylist(.presented(.delegate(.importCompleted))):
-                return .none
+            case let .addPlaylist(.presented(.delegate(.importCompleted(playlistID: playlistID)))):
+                let client = epgClient
+                return .run { _ in
+                    _ = try? await client.syncEPG(playlistID)
+                }
             case .addPlaylist:
                 return .none
             }

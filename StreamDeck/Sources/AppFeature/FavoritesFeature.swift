@@ -1,6 +1,7 @@
 import ComposableArchitecture
-import SwiftUI
 import Database
+import Repositories
+import SwiftUI
 
 @Reducer
 public struct FavoritesFeature {
@@ -10,6 +11,7 @@ public struct FavoritesFeature {
         public var channels: [ChannelRecord] = []
         public var isLoading: Bool = false
         public var focusedChannelID: String?
+        public var nowPlaying: [String: String] = [:]
         @Presents public var videoPlayer: VideoPlayerFeature.State?
 
         public init() {}
@@ -21,6 +23,7 @@ public struct FavoritesFeature {
         case channelTapped(ChannelRecord)
         case toggleFavoriteTapped(String)
         case favoriteToggled(Result<String, Error>)
+        case epgDataLoaded(Result<[String: String], Error>)
         case videoPlayer(PresentationAction<VideoPlayerFeature.Action>)
         case delegate(Delegate)
 
@@ -31,6 +34,7 @@ public struct FavoritesFeature {
     }
 
     @Dependency(\.channelListClient) var channelListClient
+    @Dependency(\.epgClient) var epgClient
 
     public init() {}
 
@@ -57,7 +61,7 @@ public struct FavoritesFeature {
             case let .channelsLoaded(.success(channels)):
                 state.isLoading = false
                 state.channels = channels
-                return .none
+                return fetchEPGData(for: channels)
 
             case .channelsLoaded(.failure):
                 state.isLoading = false
@@ -84,12 +88,32 @@ public struct FavoritesFeature {
             case .favoriteToggled(.failure):
                 return .none
 
+            case let .epgDataLoaded(.success(nowPlaying)):
+                state.nowPlaying.merge(nowPlaying) { _, new in new }
+                return .none
+
+            case .epgDataLoaded(.failure):
+                return .none
+
             case .delegate:
                 return .none
             }
         }
         .ifLet(\.$videoPlayer, action: \.videoPlayer) {
             VideoPlayerFeature()
+        }
+    }
+
+    private func fetchEPGData(for channels: [ChannelRecord]) -> Effect<Action> {
+        let epgIDs = channels.compactMap { $0.epgID ?? $0.tvgID }
+        guard !epgIDs.isEmpty else { return .none }
+        let client = epgClient
+        return .run { send in
+            let programs = try await client.fetchNowPlayingBatch(epgIDs)
+            let nowPlaying = programs.mapValues { $0.title }
+            await send(.epgDataLoaded(.success(nowPlaying)))
+        } catch: { error, send in
+            await send(.epgDataLoaded(.failure(error)))
         }
     }
 }
@@ -126,7 +150,8 @@ public struct FavoritesView: View {
                                 } label: {
                                     ChannelTileView(
                                         channel: channel,
-                                        isFocused: focusedChannelID == channel.id
+                                        isFocused: focusedChannelID == channel.id,
+                                        nowPlaying: store.nowPlaying[channel.epgID ?? ""] ?? store.nowPlaying[channel.tvgID ?? ""]
                                     )
                                 }
                                 .buttonStyle(.plain)

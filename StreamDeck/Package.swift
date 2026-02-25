@@ -85,7 +85,7 @@ let package = Package(
         ),
         .target(
             name: "Repositories",
-            dependencies: ["Database", "M3UParser", "XtreamClient"],
+            dependencies: ["Database", "M3UParser", "XtreamClient", "XMLTVParser"],
             path: "Sources/Repositories"
         ),
         .testTarget(

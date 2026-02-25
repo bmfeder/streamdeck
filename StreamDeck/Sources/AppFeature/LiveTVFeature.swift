@@ -1,6 +1,7 @@
 import ComposableArchitecture
-import SwiftUI
 import Database
+import Repositories
+import SwiftUI
 
 @Reducer
 public struct LiveTVFeature {
@@ -21,6 +22,8 @@ public struct LiveTVFeature {
         public var errorMessage: String?
         public var focusedChannelID: String?
 
+        public var nowPlaying: [String: String] = [:]
+
         @Presents public var videoPlayer: VideoPlayerFeature.State?
 
         public var isSearching: Bool { !searchQuery.isEmpty }
@@ -40,6 +43,8 @@ public struct LiveTVFeature {
         case toggleFavoriteTapped(String)
         case favoriteToggled(Result<String, Error>)
         case retryTapped
+        case epgDataLoaded(Result<[String: String], Error>)
+        case epgSyncCompleted(Result<EpgImportResult, Error>)
         case videoPlayer(PresentationAction<VideoPlayerFeature.Action>)
         case delegate(Delegate)
 
@@ -50,6 +55,7 @@ public struct LiveTVFeature {
     }
 
     @Dependency(\.channelListClient) var channelListClient
+    @Dependency(\.epgClient) var epgClient
 
     public init() {}
 
@@ -81,7 +87,11 @@ public struct LiveTVFeature {
                 state.playlists = playlists
                 if let first = playlists.first {
                     state.selectedPlaylistID = first.id
-                    return loadChannels(playlistID: first.id)
+                    var effects: [Effect<Action>] = [loadChannels(playlistID: first.id)]
+                    if first.epgURL != nil {
+                        effects.append(syncEPG(playlistID: first.id))
+                    }
+                    return .merge(effects)
                 }
                 state.isLoading = false
                 return .none
@@ -98,7 +108,7 @@ public struct LiveTVFeature {
                 state.selectedGroup = "All"
                 state.displayedChannels = grouped.allChannels
                 state.errorMessage = nil
-                return .none
+                return fetchEPGData(for: grouped.allChannels)
 
             case let .channelsLoaded(.failure(error)):
                 state.isLoading = false
@@ -198,6 +208,20 @@ public struct LiveTVFeature {
                     await send(.playlistsLoaded(.failure(error)))
                 }
 
+            case let .epgDataLoaded(.success(nowPlaying)):
+                state.nowPlaying.merge(nowPlaying) { _, new in new }
+                return .none
+
+            case .epgDataLoaded(.failure):
+                return .none
+
+            case .epgSyncCompleted(.success):
+                let channels = state.displayedChannels
+                return fetchEPGData(for: channels)
+
+            case .epgSyncCompleted(.failure):
+                return .none
+
             case .delegate:
                 return .none
             }
@@ -214,6 +238,29 @@ public struct LiveTVFeature {
             await send(.channelsLoaded(.success(grouped)))
         } catch: { error, send in
             await send(.channelsLoaded(.failure(error)))
+        }
+    }
+
+    private func fetchEPGData(for channels: [ChannelRecord]) -> Effect<Action> {
+        let epgIDs = channels.compactMap { $0.epgID ?? $0.tvgID }
+        guard !epgIDs.isEmpty else { return .none }
+        let client = epgClient
+        return .run { send in
+            let programs = try await client.fetchNowPlayingBatch(epgIDs)
+            let nowPlaying = programs.mapValues { $0.title }
+            await send(.epgDataLoaded(.success(nowPlaying)))
+        } catch: { error, send in
+            await send(.epgDataLoaded(.failure(error)))
+        }
+    }
+
+    private func syncEPG(playlistID: String) -> Effect<Action> {
+        let client = epgClient
+        return .run { send in
+            let result = try await client.syncEPG(playlistID)
+            await send(.epgSyncCompleted(.success(result)))
+        } catch: { error, send in
+            await send(.epgSyncCompleted(.failure(error)))
         }
     }
 }
@@ -289,7 +336,8 @@ public struct LiveTVView: View {
                         } label: {
                             ChannelTileView(
                                 channel: channel,
-                                isFocused: focusedChannelID == channel.id
+                                isFocused: focusedChannelID == channel.id,
+                                nowPlaying: store.nowPlaying[channel.epgID ?? ""] ?? store.nowPlaying[channel.tvgID ?? ""]
                             )
                         }
                         .buttonStyle(.plain)

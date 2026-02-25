@@ -7,12 +7,14 @@ private let tileHeight: CGFloat = 156
 private let tileCornerRadius: CGFloat = 16
 private let nameFontSize: CGFloat = 29
 private let badgeFontSize: CGFloat = 22
+private let nowPlayingFontSize: CGFloat = 24
 #else
 private let tileWidth: CGFloat = 130
 private let tileHeight: CGFloat = 78
 private let tileCornerRadius: CGFloat = 8
 private let nameFontSize: CGFloat = 12
 private let badgeFontSize: CGFloat = 10
+private let nowPlayingFontSize: CGFloat = 10
 #endif
 
 /// A single channel tile for the grid.
@@ -21,10 +23,12 @@ private let badgeFontSize: CGFloat = 10
 public struct ChannelTileView: View {
     let channel: ChannelRecord
     let isFocused: Bool
+    let nowPlaying: String?
 
-    public init(channel: ChannelRecord, isFocused: Bool = false) {
+    public init(channel: ChannelRecord, isFocused: Bool = false, nowPlaying: String? = nil) {
         self.channel = channel
         self.isFocused = isFocused
+        self.nowPlaying = nowPlaying
     }
 
     public var body: some View {
@@ -50,10 +54,29 @@ public struct ChannelTileView: View {
                 .lineLimit(2)
                 .multilineTextAlignment(.center)
                 .frame(width: tileWidth)
+
+            nowPlayingLabel
         }
         .scaleEffect(isFocused ? 1.08 : 1.0)
         .animation(.easeInOut(duration: 0.15), value: isFocused)
         .shadow(radius: isFocused ? 8 : 0)
+    }
+
+    @ViewBuilder
+    private var nowPlayingLabel: some View {
+        if let nowPlaying {
+            Text(nowPlaying)
+                .font(.system(size: nowPlayingFontSize))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .frame(width: tileWidth)
+        } else if channel.epgID != nil || channel.tvgID != nil {
+            Text("No program info")
+                .font(.system(size: nowPlayingFontSize))
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+                .frame(width: tileWidth)
+        }
     }
 
     @ViewBuilder
