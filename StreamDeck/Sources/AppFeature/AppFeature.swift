@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import Database
 import SwiftUI
 
 @Reducer
@@ -25,6 +26,7 @@ public struct AppFeature {
         case onAppear
         case tabSelected(Tab)
         case acceptDisclaimerTapped
+        case stalePlaylistsRefreshed
 
         case home(HomeFeature.Action)
         case search(SearchFeature.Action)
@@ -38,6 +40,8 @@ public struct AppFeature {
     }
 
     @Dependency(\.userDefaultsClient) var userDefaultsClient
+    @Dependency(\.vodListClient) var vodListClient
+    @Dependency(\.playlistImportClient) var playlistImportClient
 
     public init() {}
 
@@ -58,6 +62,21 @@ public struct AppFeature {
                 state.hasAcceptedDisclaimer = userDefaultsClient.boolForKey(
                     UserDefaultsKey.hasAcceptedDisclaimer
                 )
+                let vod = vodListClient
+                let importClient = playlistImportClient
+                return .run { send in
+                    let playlists = try await vod.fetchPlaylists()
+                    let now = Int(Date().timeIntervalSince1970)
+                    for playlist in playlists {
+                        let lastSync = playlist.lastSync ?? 0
+                        let staleAfter = lastSync + (playlist.refreshHrs * 3600)
+                        guard staleAfter < now else { continue }
+                        _ = try? await importClient.refreshPlaylist(playlist.id)
+                    }
+                    await send(.stalePlaylistsRefreshed)
+                } catch: { _, _ in }
+
+            case .stalePlaylistsRefreshed:
                 return .none
             case let .tabSelected(tab):
                 state.selectedTab = tab

@@ -1,4 +1,6 @@
 import ComposableArchitecture
+import Database
+import Repositories
 import XCTest
 @testable import AppFeature
 
@@ -59,10 +61,13 @@ final class AppFeatureTests: XCTestCase {
                 XCTAssertEqual(key, UserDefaultsKey.hasAcceptedDisclaimer)
                 return true
             }
+            $0.vodListClient.fetchPlaylists = { [] }
         }
+        store.exhaustivity = .off
         await store.send(.onAppear) {
             $0.hasAcceptedDisclaimer = true
         }
+        await store.skipReceivedActions()
     }
 
     func testOnAppear_noPriorAcceptance_remainsFalse() async {
@@ -70,8 +75,73 @@ final class AppFeatureTests: XCTestCase {
             AppFeature()
         } withDependencies: {
             $0.userDefaultsClient.boolForKey = { _ in false }
+            $0.vodListClient.fetchPlaylists = { [] }
         }
+        store.exhaustivity = .off
         await store.send(.onAppear)
+        await store.skipReceivedActions()
+    }
+
+    // MARK: - Auto-Refresh
+
+    func testOnAppear_refreshesStalePlaylist() async {
+        let stalePlaylist = PlaylistRecord(
+            id: "pl-stale", name: "Stale", type: "m3u",
+            url: "http://example.com/pl.m3u",
+            lastSync: 1, // Very old timestamp
+            sortOrder: 0
+        )
+        let refreshed = LockIsolated(false)
+
+        let store = TestStore(initialState: AppFeature.State()) {
+            AppFeature()
+        } withDependencies: {
+            $0.userDefaultsClient.boolForKey = { _ in true }
+            $0.vodListClient.fetchPlaylists = { [stalePlaylist] }
+            $0.playlistImportClient.refreshPlaylist = { _ in
+                refreshed.setValue(true)
+                return PlaylistImportResult(
+                    playlist: stalePlaylist,
+                    importResult: ImportResult(added: 0, updated: 0, softDeleted: 0, unchanged: 5)
+                )
+            }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.onAppear) {
+            $0.hasAcceptedDisclaimer = true
+        }
+        await store.skipReceivedActions()
+        XCTAssertTrue(refreshed.value)
+    }
+
+    func testOnAppear_skipsRecentlyRefreshedPlaylist() async {
+        let freshPlaylist = PlaylistRecord(
+            id: "pl-fresh", name: "Fresh", type: "m3u",
+            url: "http://example.com/pl.m3u",
+            lastSync: Int(Date().timeIntervalSince1970), // Just synced
+            sortOrder: 0
+        )
+        let refreshed = LockIsolated(false)
+
+        let store = TestStore(initialState: AppFeature.State()) {
+            AppFeature()
+        } withDependencies: {
+            $0.userDefaultsClient.boolForKey = { _ in false }
+            $0.vodListClient.fetchPlaylists = { [freshPlaylist] }
+            $0.playlistImportClient.refreshPlaylist = { _ in
+                refreshed.setValue(true)
+                return PlaylistImportResult(
+                    playlist: freshPlaylist,
+                    importResult: ImportResult(added: 0, updated: 0, softDeleted: 0, unchanged: 0)
+                )
+            }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.onAppear)
+        await store.skipReceivedActions()
+        XCTAssertFalse(refreshed.value)
     }
 
     // MARK: - Child Feature Actions
