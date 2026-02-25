@@ -21,6 +21,8 @@ public struct LiveTVFeature {
         public var errorMessage: String?
         public var focusedChannelID: String?
 
+        @Presents public var videoPlayer: VideoPlayerFeature.State?
+
         public var isSearching: Bool { !searchQuery.isEmpty }
 
         public init() {}
@@ -38,6 +40,7 @@ public struct LiveTVFeature {
         case toggleFavoriteTapped(String)
         case favoriteToggled(Result<String, Error>)
         case retryTapped
+        case videoPlayer(PresentationAction<VideoPlayerFeature.Action>)
         case delegate(Delegate)
 
         @CasePathable
@@ -57,6 +60,12 @@ public struct LiveTVFeature {
     public var body: some ReducerOf<Self> {
         Reduce { state, action in
             switch action {
+            case .videoPlayer(.presented(.delegate(.dismissed))):
+                state.videoPlayer = nil
+                return .none
+
+            case .videoPlayer:
+                return .none
             case .onAppear:
                 guard state.playlists.isEmpty else { return .none }
                 state.isLoading = true
@@ -142,6 +151,7 @@ public struct LiveTVFeature {
 
             case let .channelTapped(channel):
                 state.focusedChannelID = channel.id
+                state.videoPlayer = VideoPlayerFeature.State(channel: channel)
                 return .send(.delegate(.playChannel(channel)))
 
             case let .toggleFavoriteTapped(channelID):
@@ -192,6 +202,9 @@ public struct LiveTVFeature {
                 return .none
             }
         }
+        .ifLet(\.$videoPlayer, action: \.videoPlayer) {
+            VideoPlayerFeature()
+        }
     }
 
     private func loadChannels(playlistID: String) -> Effect<Action> {
@@ -208,7 +221,7 @@ public struct LiveTVFeature {
 // MARK: - View
 
 public struct LiveTVView: View {
-    let store: StoreOf<LiveTVFeature>
+    @Bindable var store: StoreOf<LiveTVFeature>
     @FocusState private var focusedChannelID: String?
 
     public init(store: StoreOf<LiveTVFeature>) {
@@ -238,6 +251,19 @@ public struct LiveTVView: View {
             }
             .navigationTitle(Tab.liveTV.title)
             .onAppear { store.send(.onAppear) }
+            #if os(tvOS) || os(iOS)
+            .fullScreenCover(
+                item: $store.scope(state: \.videoPlayer, action: \.videoPlayer)
+            ) { playerStore in
+                VideoPlayerView(store: playerStore)
+            }
+            #else
+            .sheet(
+                item: $store.scope(state: \.videoPlayer, action: \.videoPlayer)
+            ) { playerStore in
+                VideoPlayerView(store: playerStore)
+            }
+            #endif
         }
     }
 

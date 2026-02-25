@@ -286,6 +286,7 @@ final class LiveTVFeatureTests: XCTestCase {
 
         await store.send(.channelTapped(channel)) {
             $0.focusedChannelID = "ch-1"
+            $0.videoPlayer = VideoPlayerFeature.State(channel: channel)
         }
 
         await store.receive(\.delegate.playChannel)

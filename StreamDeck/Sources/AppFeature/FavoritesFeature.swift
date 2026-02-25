@@ -10,6 +10,7 @@ public struct FavoritesFeature {
         public var channels: [ChannelRecord] = []
         public var isLoading: Bool = false
         public var focusedChannelID: String?
+        @Presents public var videoPlayer: VideoPlayerFeature.State?
 
         public init() {}
     }
@@ -20,6 +21,7 @@ public struct FavoritesFeature {
         case channelTapped(ChannelRecord)
         case toggleFavoriteTapped(String)
         case favoriteToggled(Result<String, Error>)
+        case videoPlayer(PresentationAction<VideoPlayerFeature.Action>)
         case delegate(Delegate)
 
         @CasePathable
@@ -35,6 +37,13 @@ public struct FavoritesFeature {
     public var body: some ReducerOf<Self> {
         Reduce { state, action in
             switch action {
+            case .videoPlayer(.presented(.delegate(.dismissed))):
+                state.videoPlayer = nil
+                return .none
+
+            case .videoPlayer:
+                return .none
+
             case .onAppear:
                 state.isLoading = true
                 let client = channelListClient
@@ -56,6 +65,7 @@ public struct FavoritesFeature {
 
             case let .channelTapped(channel):
                 state.focusedChannelID = channel.id
+                state.videoPlayer = VideoPlayerFeature.State(channel: channel)
                 return .send(.delegate(.playChannel(channel)))
 
             case let .toggleFavoriteTapped(channelID):
@@ -78,13 +88,16 @@ public struct FavoritesFeature {
                 return .none
             }
         }
+        .ifLet(\.$videoPlayer, action: \.videoPlayer) {
+            VideoPlayerFeature()
+        }
     }
 }
 
 // MARK: - View
 
 public struct FavoritesView: View {
-    let store: StoreOf<FavoritesFeature>
+    @Bindable var store: StoreOf<FavoritesFeature>
     @FocusState private var focusedChannelID: String?
 
     public init(store: StoreOf<FavoritesFeature>) {
@@ -134,6 +147,19 @@ public struct FavoritesView: View {
             }
             .navigationTitle(Tab.favorites.title)
             .onAppear { store.send(.onAppear) }
+            #if os(tvOS) || os(iOS)
+            .fullScreenCover(
+                item: $store.scope(state: \.videoPlayer, action: \.videoPlayer)
+            ) { playerStore in
+                VideoPlayerView(store: playerStore)
+            }
+            #else
+            .sheet(
+                item: $store.scope(state: \.videoPlayer, action: \.videoPlayer)
+            ) { playerStore in
+                VideoPlayerView(store: playerStore)
+            }
+            #endif
         }
     }
 
