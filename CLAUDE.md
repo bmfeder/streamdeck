@@ -35,15 +35,16 @@ Channels use three-tier IDs: `playlist_id` (source) → `source_channel_id` (pro
 streamdeck/
 ├── CLAUDE.md                  ← you are here
 ├── StreamDeck.xcodeproj       ← Xcode project (tvOS app)
-├── App/                       ← tvOS app target (SwiftUI)
-│   ├── StreamDeckApp.swift
-│   ├── ContentView.swift
-│   └── Assets.xcassets/
+├── .github/workflows/ci.yml   ← GitHub Actions CI (Swift tests + tvOS build)
+├── App/                       ← tvOS app target (SwiftUI @main entry point)
+│   └── StreamDeckApp.swift
 ├── StreamDeck/                ← Swift Package (parsers, models, tests)
 │   ├── Package.swift
 │   ├── Sources/M3UParser/     ← M3U/M3U8 parser (41 tests)
 │   ├── Sources/XtreamClient/  ← Xtream Codes API client (57 tests)
 │   ├── Sources/XMLTVParser/   ← XMLTV EPG parser, SAX-style (57 tests)
+│   ├── Sources/Database/      ← GRDB schema v1 (45 tests)
+│   ├── Sources/AppFeature/    ← TCA root + 7 tab features (10 tests)
 │   └── Tests/
 ├── Shared/                    ← KMP shared module (empty shell, for Android phase)
 ├── docs/
@@ -53,23 +54,27 @@ streamdeck/
 ```
 
 ## Current Status
-- **Phase 0 — In Progress**
+- **Phase 0 — Complete** (except TestFlight which requires App Store Connect manual setup)
 - Design spec v2.1 complete (16 sections, reviewed twice)
-- M3U parser written and tested (41 tests, 20 fixture playlists)
-- Xtream Codes API client written and tested (57 tests)
-- XMLTV EPG parser written and tested (57 tests, SAX-style incremental)
-- Xcode project created (tvOS 26.0+, SwiftUI lifecycle)
-- Local Swift Package linked (M3UParser, XtreamClient, XMLTVParser)
+- M3U parser: 41 tests, 20 fixture playlists
+- Xtream Codes API client: 57 tests
+- XMLTV EPG parser: 57 tests, SAX-style incremental
+- GRDB database schema v1: 45 tests, 5 record types, 9 indexes, soft-delete
+- TCA skeleton: 10 tests, 7-tab sidebar, legal disclaimer gate
+- SPM dependencies: TCA 1.23.1, GRDB 7.10.0, VLCKit 3.6.0
+- Xcode project (tvOS 26.0+, SwiftUI lifecycle)
 - KMP shared module scaffolded (empty shell)
-- Task tracker created with Phase 0 (16 tasks) and Phase 1 (29 tasks)
+- GitHub Actions CI: 2 jobs (Swift tests + tvOS build) on macos-26
+- Total: **210 tests** across 6 targets, all passing
 
-## What to Build Next (Phase 0 remaining)
-Reference: tasks/streamdeck-tasks.xlsx, "Phase 0 — Scaffolding" sheet
-1. Configure SPM dependencies (TCA, GRDB, VLCKit)
-2. GRDB schema v1 (all tables from design spec §06)
-3. TCA skeleton with sidebar navigation
-4. GitHub Actions CI (build + test)
-5. TestFlight setup
+## What to Build Next (Phase 1)
+Reference: tasks/streamdeck-tasks.xlsx, "Phase 1" sheet
+- TestFlight setup (requires manual App Store Connect app record)
+- PlaylistRepository + ChannelRepository
+- Playlist import (M3U, Xtream)
+- Channel grid UI with category filtering
+- Video player (AVPlayer primary)
+- EPG grid view
 
 ## Coding Conventions
 
