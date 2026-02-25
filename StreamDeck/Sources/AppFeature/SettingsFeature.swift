@@ -9,6 +9,7 @@ public struct SettingsFeature {
     public struct State: Equatable, Sendable {
         public var playlists: [PlaylistRecord] = []
         public var playlistToDelete: PlaylistRecord?
+        public var refreshingPlaylistID: String?
         @Presents public var addPlaylist: AddPlaylistFeature.State?
 
         public init() {}
@@ -21,6 +22,8 @@ public struct SettingsFeature {
         case deletePlaylistConfirmed
         case deletePlaylistCancelled
         case playlistDeleted(Result<String, Error>)
+        case refreshPlaylistTapped(PlaylistRecord)
+        case playlistRefreshed(Result<PlaylistImportResult, Error>)
         case addM3UTapped
         case addXtreamTapped
         case addEmbyTapped
@@ -77,6 +80,30 @@ public struct SettingsFeature {
                 return .none
 
             case .playlistDeleted(.failure):
+                return .none
+
+            case let .refreshPlaylistTapped(playlist):
+                guard state.refreshingPlaylistID == nil else { return .none }
+                state.refreshingPlaylistID = playlist.id
+                let client = playlistImportClient
+                let id = playlist.id
+                return .run { send in
+                    let result = try await client.refreshPlaylist(id)
+                    await send(.playlistRefreshed(.success(result)))
+                } catch: { error, send in
+                    await send(.playlistRefreshed(.failure(error)))
+                }
+
+            case .playlistRefreshed(.success):
+                state.refreshingPlaylistID = nil
+                let client = vodListClient
+                return .run { send in
+                    let playlists = try await client.fetchPlaylists()
+                    await send(.playlistsLoaded(.success(playlists)))
+                } catch: { _, _ in }
+
+            case .playlistRefreshed(.failure):
+                state.refreshingPlaylistID = nil
                 return .none
 
             case .addM3UTapped:
@@ -185,7 +212,8 @@ public struct SettingsView: View {
     }
 
     private func playlistRow(_ playlist: PlaylistRecord) -> some View {
-        HStack {
+        let isRefreshing = store.refreshingPlaylistID == playlist.id
+        return HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text(playlist.name)
                     .font(.body)
@@ -196,6 +224,19 @@ public struct SettingsView: View {
                 }
             }
             Spacer()
+            if isRefreshing {
+                ProgressView()
+                    #if os(tvOS)
+                    .scaleEffect(0.8)
+                    #endif
+            } else {
+                Button {
+                    store.send(.refreshPlaylistTapped(playlist))
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.borderless)
+            }
             Text(playlist.type.uppercased())
                 .font(.caption2)
                 .fontWeight(.semibold)

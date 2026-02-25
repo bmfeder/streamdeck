@@ -28,6 +28,276 @@ public struct PlaylistImportService: Sendable {
         self.uuidGenerator = uuidGenerator
     }
 
+    // MARK: - Refresh
+
+    /// Re-imports content for an existing playlist, preserving favorites and watch progress.
+    /// Detects playlist type and routes to the appropriate import pipeline.
+    public func refreshPlaylist(id: String) async throws -> PlaylistImportResult {
+        guard let playlist = try playlistRepo.get(id: id) else {
+            throw PlaylistImportError.playlistNotFound
+        }
+
+        switch playlist.type {
+        case "m3u":
+            return try await refreshM3U(playlist: playlist)
+        case "xtream":
+            return try await refreshXtream(playlist: playlist)
+        case "emby":
+            return try await refreshEmby(playlist: playlist)
+        default:
+            throw PlaylistImportError.playlistNotFound
+        }
+    }
+
+    private func refreshM3U(playlist: PlaylistRecord) async throws -> PlaylistImportResult {
+        guard let url = URL(string: playlist.url) else {
+            throw PlaylistImportError.downloadFailed("Invalid URL")
+        }
+
+        // Download
+        let request = URLRequest(url: url)
+        let data: Data
+        do {
+            let (responseData, response) = try await httpClient.data(for: request)
+            guard (200..<300).contains(response.statusCode) else {
+                throw PlaylistImportError.downloadFailed("HTTP \(response.statusCode)")
+            }
+            data = responseData
+        } catch let error as PlaylistImportError {
+            throw error
+        } catch {
+            throw PlaylistImportError.networkError(error.localizedDescription)
+        }
+
+        // Parse
+        let parser = M3UParser()
+        let parseResult = parser.parse(data: data)
+        guard !parseResult.channels.isEmpty else {
+            throw PlaylistImportError.emptyPlaylist
+        }
+
+        let now = Int(Date().timeIntervalSince1970)
+        let liveEntries = parseResult.channels.filter { $0.duration <= 0 }
+        let vodEntries = parseResult.channels.filter { $0.duration > 0 }
+
+        // Import live channels
+        let channels = liveEntries.map { parsed in
+            ChannelConverter.fromParsedChannel(parsed, playlistID: playlist.id, id: uuidGenerator())
+        }
+        let importResult = try channelRepo.importChannels(playlistID: playlist.id, channels: channels, now: now)
+
+        // Import VOD items
+        var vodImportResult: VodImportResult?
+        if !vodEntries.isEmpty, let vodRepo {
+            let vodItems = vodEntries.map { parsed in
+                VodConverter.fromParsedChannel(parsed, playlistID: playlist.id, id: uuidGenerator())
+            }
+            vodImportResult = try vodRepo.importVodItems(playlistID: playlist.id, items: vodItems)
+        }
+
+        // Update sync timestamp
+        try playlistRepo.updateSyncTimestamp(playlist.id, timestamp: now)
+
+        let parseErrors = parseResult.errors.prefix(10).map { "Line \($0.line): \($0.reason.rawValue)" }
+
+        var updatedPlaylist = playlist
+        updatedPlaylist.lastSync = now
+        return PlaylistImportResult(
+            playlist: updatedPlaylist,
+            importResult: importResult,
+            vodImportResult: vodImportResult,
+            parseErrors: Array(parseErrors)
+        )
+    }
+
+    private func refreshXtream(playlist: PlaylistRecord) async throws -> PlaylistImportResult {
+        guard let serverURL = URL(string: playlist.url),
+              let username = playlist.username,
+              let passwordRef = playlist.passwordRef,
+              let password = KeychainHelper.load(key: passwordRef)
+        else {
+            throw PlaylistImportError.authenticationFailed
+        }
+
+        let credentials = XtreamCredentials(serverURL: serverURL, username: username, password: password)
+        let client = XtreamClient(credentials: credentials, httpClient: httpClient)
+
+        // Authenticate
+        do {
+            _ = try await client.authenticate()
+        } catch let error as XtreamError {
+            switch error {
+            case .accountExpired: throw PlaylistImportError.accountExpired
+            case .authenticationFailed: throw PlaylistImportError.authenticationFailed
+            default: throw PlaylistImportError.networkError(String(describing: error))
+            }
+        } catch {
+            throw PlaylistImportError.authenticationFailed
+        }
+
+        // Fetch categories and streams
+        let categories = try await client.getLiveCategories()
+        let streams = try await client.getLiveStreams()
+        guard !streams.isEmpty else {
+            throw PlaylistImportError.emptyPlaylist
+        }
+
+        var categoryMap: [String: String] = [:]
+        for category in categories {
+            categoryMap[category.categoryId.value] = category.categoryName
+        }
+
+        let now = Int(Date().timeIntervalSince1970)
+        let channels = streams.map { stream in
+            let categoryName = categoryMap[stream.categoryId.value]
+            let streamURL = client.liveStreamURL(streamId: stream.streamId.value).absoluteString
+            return ChannelConverter.fromXtreamLiveStream(
+                stream, playlistID: playlist.id, categoryName: categoryName,
+                streamURL: streamURL, id: uuidGenerator()
+            )
+        }
+        let importResult = try channelRepo.importChannels(playlistID: playlist.id, channels: channels, now: now)
+
+        // Fetch and import VOD content (non-fatal)
+        var vodImportResult: VodImportResult?
+        if let vodRepo {
+            do {
+                var vodItems: [VodItemRecord] = []
+                let vodCategories = try await client.getVODCategories()
+                var vodCategoryMap: [String: String] = [:]
+                for cat in vodCategories { vodCategoryMap[cat.categoryId.value] = cat.categoryName }
+                let vodStreams = try await client.getVODStreams()
+                for stream in vodStreams {
+                    let catName = vodCategoryMap[stream.categoryId.value]
+                    let ext = stream.containerExtension ?? "mp4"
+                    let url = client.vodStreamURL(streamId: stream.streamId.value, containerExtension: ext).absoluteString
+                    vodItems.append(VodConverter.fromXtreamVODStream(
+                        stream, playlistID: playlist.id, categoryName: catName, streamURL: url, id: uuidGenerator()
+                    ))
+                }
+                let seriesCategories = try await client.getSeriesCategories()
+                var seriesCategoryMap: [String: String] = [:]
+                for cat in seriesCategories { seriesCategoryMap[cat.categoryId.value] = cat.categoryName }
+                let seriesList = try await client.getSeries()
+                for series in seriesList {
+                    let catName = seriesCategoryMap[series.categoryId.value]
+                    vodItems.append(VodConverter.fromXtreamSeries(
+                        series, playlistID: playlist.id, categoryName: catName, id: uuidGenerator()
+                    ))
+                }
+                if !vodItems.isEmpty {
+                    vodImportResult = try vodRepo.importVodItems(playlistID: playlist.id, items: vodItems)
+                }
+            } catch {
+                // VOD import failures should not block the overall refresh
+            }
+        }
+
+        try playlistRepo.updateSyncTimestamp(playlist.id, timestamp: now)
+
+        var updatedPlaylist = playlist
+        updatedPlaylist.lastSync = now
+        return PlaylistImportResult(playlist: updatedPlaylist, importResult: importResult, vodImportResult: vodImportResult)
+    }
+
+    private func refreshEmby(playlist: PlaylistRecord) async throws -> PlaylistImportResult {
+        guard let serverURL = URL(string: playlist.url),
+              let username = playlist.username,
+              let passwordRef = playlist.passwordRef,
+              let credentialJSON = KeychainHelper.load(key: passwordRef),
+              let jsonData = credentialJSON.data(using: .utf8),
+              let creds = try? JSONDecoder().decode([String: String].self, from: jsonData),
+              let password = creds["password"]
+        else {
+            throw PlaylistImportError.authenticationFailed
+        }
+
+        let credentials = EmbyCredentials(serverURL: serverURL, username: username, password: password)
+        let client = EmbyClient(credentials: credentials, httpClient: httpClient)
+
+        // Re-authenticate to get fresh token
+        let authResponse: EmbyAuthResponse
+        do {
+            authResponse = try await client.authenticate()
+        } catch {
+            throw PlaylistImportError.authenticationFailed
+        }
+
+        let userId = authResponse.user.id
+        let accessToken = authResponse.accessToken
+
+        // Update Keychain with new token
+        let newCreds: [String: String] = [
+            "userId": userId,
+            "accessToken": accessToken,
+            "password": password,
+        ]
+        if let newJsonData = try? JSONEncoder().encode(newCreds),
+           let jsonString = String(data: newJsonData, encoding: .utf8) {
+            KeychainHelper.save(key: passwordRef, value: jsonString)
+        }
+
+        // Fetch libraries and items
+        let libraries = try await client.getLibraries(userId: userId, accessToken: accessToken)
+        var vodItems: [VodItemRecord] = []
+
+        for library in libraries {
+            guard let collectionType = library.collectionType,
+                  collectionType == "movies" || collectionType == "tvshows" else { continue }
+
+            let itemType = collectionType == "movies" ? "Movie" : "Series"
+            var startIndex = 0
+
+            while true {
+                let response = try await client.getItems(
+                    userId: userId, accessToken: accessToken,
+                    parentId: library.id, includeItemTypes: itemType,
+                    startIndex: startIndex, limit: 100
+                )
+                for item in response.items {
+                    if collectionType == "movies" {
+                        vodItems.append(EmbyConverter.fromEmbyMovie(
+                            item, playlistID: playlist.id, serverURL: serverURL, accessToken: accessToken
+                        ))
+                    } else {
+                        let seriesRecord = EmbyConverter.fromEmbySeries(item, playlistID: playlist.id, serverURL: serverURL)
+                        vodItems.append(seriesRecord)
+                        let episodesResponse = try await client.getItems(
+                            userId: userId, accessToken: accessToken,
+                            parentId: library.id, includeItemTypes: "Episode",
+                            startIndex: 0, limit: 1000
+                        )
+                        let seriesEpisodes = episodesResponse.items.filter { $0.seriesId == item.id }
+                        for ep in seriesEpisodes {
+                            vodItems.append(EmbyConverter.fromEmbyEpisode(
+                                ep, playlistID: playlist.id, seriesID: seriesRecord.id,
+                                serverURL: serverURL, accessToken: accessToken
+                            ))
+                        }
+                    }
+                }
+                startIndex += response.items.count
+                if startIndex >= response.totalRecordCount { break }
+            }
+        }
+
+        var vodImportResult: VodImportResult?
+        if !vodItems.isEmpty, let vodRepo {
+            vodImportResult = try vodRepo.importVodItems(playlistID: playlist.id, items: vodItems)
+        }
+
+        let now = Int(Date().timeIntervalSince1970)
+        try playlistRepo.updateSyncTimestamp(playlist.id, timestamp: now)
+
+        var updatedPlaylist = playlist
+        updatedPlaylist.lastSync = now
+        return PlaylistImportResult(
+            playlist: updatedPlaylist,
+            importResult: ImportResult(added: 0, updated: 0, softDeleted: 0, unchanged: 0),
+            vodImportResult: vodImportResult
+        )
+    }
+
     // MARK: - M3U Import
 
     /// Downloads M3U from URL, parses, converts channels, and persists to database.

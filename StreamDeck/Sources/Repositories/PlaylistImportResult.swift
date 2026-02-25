@@ -8,6 +8,7 @@ public enum PlaylistImportError: Error, Equatable, Sendable {
     case authenticationFailed
     case accountExpired
     case networkError(String)
+    case playlistNotFound
 }
 
 /// Result of importing a playlist (M3U or Xtream) into the database.

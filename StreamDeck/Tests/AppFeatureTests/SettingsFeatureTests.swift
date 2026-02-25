@@ -174,6 +174,70 @@ final class SettingsFeatureTests: XCTestCase {
         }
     }
 
+    // MARK: - Refresh
+
+    func testRefreshPlaylistTapped_setsRefreshingID() async {
+        let playlist = makePlaylist(id: "pl-1")
+        var state = SettingsFeature.State()
+        state.playlists = [playlist]
+
+        let refreshedPlaylist = makePlaylist(id: "pl-1", lastSync: 1700000000)
+        let store = TestStore(initialState: state) {
+            SettingsFeature()
+        } withDependencies: {
+            $0.playlistImportClient.refreshPlaylist = { _ in
+                PlaylistImportResult(
+                    playlist: refreshedPlaylist,
+                    importResult: ImportResult(added: 0, updated: 0, softDeleted: 0, unchanged: 10)
+                )
+            }
+            $0.vodListClient.fetchPlaylists = { [refreshedPlaylist] }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.refreshPlaylistTapped(playlist)) {
+            $0.refreshingPlaylistID = "pl-1"
+        }
+        await store.skipReceivedActions()
+
+        store.assert {
+            $0.refreshingPlaylistID = nil
+            $0.playlists = [refreshedPlaylist]
+        }
+    }
+
+    func testPlaylistRefreshed_failure_clearsRefreshing() async {
+        let playlist = makePlaylist(id: "pl-1")
+        var state = SettingsFeature.State()
+        state.playlists = [playlist]
+
+        let store = TestStore(initialState: state) {
+            SettingsFeature()
+        } withDependencies: {
+            $0.playlistImportClient.refreshPlaylist = { _ in
+                throw NSError(domain: "test", code: 1)
+            }
+        }
+
+        await store.send(.refreshPlaylistTapped(playlist)) {
+            $0.refreshingPlaylistID = "pl-1"
+        }
+        await store.receive(\.playlistRefreshed.failure) {
+            $0.refreshingPlaylistID = nil
+        }
+    }
+
+    func testRefreshPlaylistTapped_whileAlreadyRefreshing_noOp() async {
+        var state = SettingsFeature.State()
+        state.refreshingPlaylistID = "pl-other"
+
+        let store = TestStore(initialState: state) {
+            SettingsFeature()
+        }
+
+        await store.send(.refreshPlaylistTapped(makePlaylist(id: "pl-1")))
+    }
+
     // MARK: - Import Completed Refreshes List
 
     func testImportCompleted_refreshesPlaylistList() async {

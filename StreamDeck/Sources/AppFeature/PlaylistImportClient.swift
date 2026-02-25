@@ -32,6 +32,9 @@ public struct PlaylistImportClient: Sendable {
 
     /// Delete a playlist and all its associated content (channels, VOD, progress).
     public var deletePlaylist: @Sendable (_ id: String) async throws -> Void
+
+    /// Refresh an existing playlist by re-downloading and re-importing content.
+    public var refreshPlaylist: @Sendable (_ id: String) async throws -> PlaylistImportResult
 }
 
 // MARK: - Dependency Registration
@@ -67,6 +70,9 @@ extension PlaylistImportClient: DependencyKey {
             },
             deletePlaylist: { id in
                 try playlistRepo.delete(id: id)
+            },
+            refreshPlaylist: { id in
+                try await service.refreshPlaylist(id: id)
             }
         )
     }
@@ -76,7 +82,8 @@ extension PlaylistImportClient: DependencyKey {
             importM3U: unimplemented("PlaylistImportClient.importM3U"),
             importXtream: unimplemented("PlaylistImportClient.importXtream"),
             importEmby: unimplemented("PlaylistImportClient.importEmby"),
-            deletePlaylist: unimplemented("PlaylistImportClient.deletePlaylist")
+            deletePlaylist: unimplemented("PlaylistImportClient.deletePlaylist"),
+            refreshPlaylist: unimplemented("PlaylistImportClient.refreshPlaylist")
         )
     }
 
