@@ -68,6 +68,7 @@
 				A0000001AAAA000000000001 /* M3UParser */,
 				A0000001AAAA000000000002 /* XtreamClient */,
 				A0000001AAAA000000000003 /* XMLTVParser */,
+				A0000001AAAA000000000004 /* AppFeature */,
 			);
 			productName = StreamDeck;
 			productReference = 52689E8C2F4E6F370008AE65 /* StreamDeck.app */;
@@ -352,6 +353,10 @@
 		A0000001AAAA000000000003 /* XMLTVParser */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = XMLTVParser;
+		};
+		A0000001AAAA000000000004 /* AppFeature */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AppFeature;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

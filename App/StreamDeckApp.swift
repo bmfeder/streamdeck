@@ -1,17 +1,16 @@
-//
-//  StreamDeckApp.swift
-//  StreamDeck
-//
-//  Created by Brian Feder on 2/24/26.
-//
-
+import AppFeature
+import ComposableArchitecture
 import SwiftUI
 
 @main
 struct StreamDeckApp: App {
+    static let store = Store(initialState: AppFeature.State()) {
+        AppFeature()
+    }
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            AppView(store: Self.store)
         }
     }
 }

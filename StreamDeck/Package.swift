@@ -13,6 +13,7 @@ let package = Package(
         .library(name: "XtreamClient", targets: ["XtreamClient"]),
         .library(name: "XMLTVParser", targets: ["XMLTVParser"]),
         .library(name: "Database", targets: ["Database"]),
+        .library(name: "AppFeature", targets: ["AppFeature"]),
     ],
     dependencies: [
         .package(
@@ -48,6 +49,13 @@ let package = Package(
             ],
             path: "Sources/Database"
         ),
+        .target(
+            name: "AppFeature",
+            dependencies: [
+                .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
+            ],
+            path: "Sources/AppFeature"
+        ),
         .testTarget(
             name: "M3UParserTests",
             dependencies: ["M3UParser"],
@@ -67,6 +75,11 @@ let package = Package(
             name: "DatabaseTests",
             dependencies: ["Database"],
             path: "Tests/DatabaseTests"
+        ),
+        .testTarget(
+            name: "AppFeatureTests",
+            dependencies: ["AppFeature"],
+            path: "Tests/AppFeatureTests"
         ),
     ]
 )
