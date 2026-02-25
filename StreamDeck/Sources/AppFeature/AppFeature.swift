@@ -21,6 +21,7 @@ public struct AppFeature {
     }
 
     public enum Action: Sendable {
+        case onAppear
         case tabSelected(Tab)
         case acceptDisclaimerTapped
 
@@ -33,6 +34,8 @@ public struct AppFeature {
         case favorites(FavoritesFeature.Action)
         case settings(SettingsFeature.Action)
     }
+
+    @Dependency(\.userDefaultsClient) var userDefaultsClient
 
     public init() {}
 
@@ -48,11 +51,17 @@ public struct AppFeature {
 
         Reduce { state, action in
             switch action {
+            case .onAppear:
+                state.hasAcceptedDisclaimer = userDefaultsClient.boolForKey(
+                    UserDefaultsKey.hasAcceptedDisclaimer
+                )
+                return .none
             case let .tabSelected(tab):
                 state.selectedTab = tab
                 return .none
             case .acceptDisclaimerTapped:
                 state.hasAcceptedDisclaimer = true
+                userDefaultsClient.setBool(true, UserDefaultsKey.hasAcceptedDisclaimer)
                 return .none
             case .home, .liveTV, .guide, .movies, .tvShows, .emby, .favorites, .settings:
                 return .none
@@ -71,13 +80,16 @@ public struct AppView: View {
     }
 
     public var body: some View {
-        if store.hasAcceptedDisclaimer {
-            sidebarTabView
-        } else {
-            DisclaimerView {
-                store.send(.acceptDisclaimerTapped)
+        Group {
+            if store.hasAcceptedDisclaimer {
+                sidebarTabView
+            } else {
+                DisclaimerView {
+                    store.send(.acceptDisclaimerTapped)
+                }
             }
         }
+        .onAppear { store.send(.onAppear) }
     }
 
     private var sidebarTabView: some View {

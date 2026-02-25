@@ -608,7 +608,7 @@ final class VideoPlayerFeatureTests: XCTestCase {
     func testProgressLoaded_belowThreshold_noResume() async {
         let record = WatchProgressRecord(contentID: "ch-1", positionMs: 5000, updatedAt: 1_700_000_000)
 
-        var state = VideoPlayerFeature.State(channel: makeChannel())
+        let state = VideoPlayerFeature.State(channel: makeChannel())
         let store = TestStore(initialState: state) {
             VideoPlayerFeature()
         }

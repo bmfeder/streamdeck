@@ -36,13 +36,42 @@ final class AppFeatureTests: XCTestCase {
 
     // MARK: - Disclaimer
 
-    func testAcceptDisclaimer_setsFlag() async {
+    func testAcceptDisclaimer_setsFlag_andPersists() async {
+        let persisted = LockIsolated(false)
         let store = TestStore(initialState: AppFeature.State()) {
             AppFeature()
+        } withDependencies: {
+            $0.userDefaultsClient.setBool = { value, _ in
+                persisted.setValue(value)
+            }
         }
         await store.send(.acceptDisclaimerTapped) {
             $0.hasAcceptedDisclaimer = true
         }
+        XCTAssertTrue(persisted.value)
+    }
+
+    func testOnAppear_loadsPersistedDisclaimer() async {
+        let store = TestStore(initialState: AppFeature.State()) {
+            AppFeature()
+        } withDependencies: {
+            $0.userDefaultsClient.boolForKey = { key in
+                XCTAssertEqual(key, UserDefaultsKey.hasAcceptedDisclaimer)
+                return true
+            }
+        }
+        await store.send(.onAppear) {
+            $0.hasAcceptedDisclaimer = true
+        }
+    }
+
+    func testOnAppear_noPriorAcceptance_remainsFalse() async {
+        let store = TestStore(initialState: AppFeature.State()) {
+            AppFeature()
+        } withDependencies: {
+            $0.userDefaultsClient.boolForKey = { _ in false }
+        }
+        await store.send(.onAppear)
     }
 
     // MARK: - Child Feature Actions
