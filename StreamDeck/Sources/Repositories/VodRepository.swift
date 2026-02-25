@@ -38,6 +38,16 @@ public struct VodRepository: Sendable {
         }
     }
 
+    /// Fetches multiple VOD items by their IDs.
+    public func getByIDs(ids: [String]) throws -> [VodItemRecord] {
+        guard !ids.isEmpty else { return [] }
+        return try dbManager.dbQueue.read { db in
+            try VodItemRecord
+                .filter(ids.contains(Column("id")))
+                .fetchAll(db)
+        }
+    }
+
     /// Updates an existing VOD item record.
     public func update(_ record: VodItemRecord) throws {
         try dbManager.dbQueue.write { db in

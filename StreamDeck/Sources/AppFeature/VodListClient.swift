@@ -18,6 +18,8 @@ public struct VodListClient: Sendable {
     public var searchVod: @Sendable (_ query: String, _ playlistID: String?, _ type: String?) async throws -> [VodItemRecord]
 
     public var fetchGenres: @Sendable (_ playlistID: String, _ type: String) async throws -> [String]
+
+    public var fetchVodItemsByIDs: @Sendable (_ ids: [String]) async throws -> [VodItemRecord]
 }
 
 // MARK: - Dependency Registration
@@ -45,6 +47,9 @@ extension VodListClient: DependencyKey {
             },
             fetchGenres: { playlistID, type in
                 try vodRepo.getGenres(playlistID: playlistID, type: type)
+            },
+            fetchVodItemsByIDs: { ids in
+                try vodRepo.getByIDs(ids: ids)
             }
         )
     }
@@ -56,7 +61,8 @@ extension VodListClient: DependencyKey {
             fetchSeries: unimplemented("VodListClient.fetchSeries"),
             fetchEpisodes: unimplemented("VodListClient.fetchEpisodes"),
             searchVod: unimplemented("VodListClient.searchVod"),
-            fetchGenres: unimplemented("VodListClient.fetchGenres")
+            fetchGenres: unimplemented("VodListClient.fetchGenres"),
+            fetchVodItemsByIDs: unimplemented("VodListClient.fetchVodItemsByIDs")
         )
     }
 

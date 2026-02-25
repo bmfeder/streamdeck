@@ -76,11 +76,18 @@ final class AppFeatureTests: XCTestCase {
 
     // MARK: - Child Feature Actions
 
-    func testHomeOnAppear_passesThrough() async {
+    func testHomeOnAppear_loadsData() async {
         let store = TestStore(initialState: AppFeature.State()) {
             AppFeature()
+        } withDependencies: {
+            $0.watchProgressClient.getUnfinished = { _ in [] }
+            $0.channelListClient.fetchFavorites = { [] }
         }
-        await store.send(.home(.onAppear))
+        store.exhaustivity = .off
+        await store.send(.home(.onAppear)) {
+            $0.home.isLoading = true
+        }
+        await store.skipReceivedActions()
     }
 
     func testLiveTVOnAppear_loadsPlaylists() async {

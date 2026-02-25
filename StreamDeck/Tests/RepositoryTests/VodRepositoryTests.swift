@@ -192,6 +192,24 @@ final class VodRepositoryTests: XCTestCase {
         XCTAssertEqual(genres, ["Action", "Drama", "Sci-Fi"])
     }
 
+    func testGetByIDs_returnsMatchingItems() throws {
+        try repo.create(makeVodItem(id: "m1", title: "Movie A"))
+        try repo.create(makeVodItem(id: "m2", title: "Movie B"))
+        try repo.create(makeVodItem(id: "m3", title: "Movie C"))
+
+        let results = try repo.getByIDs(ids: ["m1", "m3", "m999"])
+        XCTAssertEqual(results.count, 2)
+        let ids = Set(results.map(\.id))
+        XCTAssertTrue(ids.contains("m1"))
+        XCTAssertTrue(ids.contains("m3"))
+    }
+
+    func testGetByIDs_emptyInput_returnsEmpty() throws {
+        try repo.create(makeVodItem(id: "m1", title: "Movie A"))
+        let results = try repo.getByIDs(ids: [])
+        XCTAssertTrue(results.isEmpty)
+    }
+
     func testCascadeDelete_removesItemsWithPlaylist() throws {
         try repo.create(makeVodItem(id: "m1", title: "Movie"))
 
