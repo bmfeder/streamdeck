@@ -55,6 +55,7 @@ let package = Package(
             name: "AppFeature",
             dependencies: [
                 .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
+                .product(name: "VLCKitSPM", package: "vlckit-spm", condition: .when(platforms: [.tvOS, .iOS])),
                 "Repositories",
             ],
             path: "Sources/AppFeature"

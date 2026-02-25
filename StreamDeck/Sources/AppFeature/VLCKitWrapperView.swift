@@ -1,0 +1,140 @@
+#if os(tvOS) || os(iOS)
+import SwiftUI
+import VLCKitSPM
+
+/// Wraps VLCMediaPlayer for tvOS/iOS playback of TS, MKV, AVI, RTSP, RTMP, and other formats
+/// that AVPlayer cannot handle natively. Mirrors AVPlayerWrapperView's callback interface.
+struct VLCKitWrapperView: UIViewRepresentable {
+    let url: URL
+    let initialSeekMs: Int?
+    let onStatusChange: @Sendable (PlaybackStatus) -> Void
+    let onError: @Sendable (PlayerError) -> Void
+    let onTimeUpdate: @Sendable (Int, Int?) -> Void
+
+    init(
+        url: URL,
+        initialSeekMs: Int? = nil,
+        onStatusChange: @escaping @Sendable (PlaybackStatus) -> Void,
+        onError: @escaping @Sendable (PlayerError) -> Void,
+        onTimeUpdate: @escaping @Sendable (Int, Int?) -> Void = { _, _ in }
+    ) {
+        self.url = url
+        self.initialSeekMs = initialSeekMs
+        self.onStatusChange = onStatusChange
+        self.onError = onError
+        self.onTimeUpdate = onTimeUpdate
+    }
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.backgroundColor = .black
+
+        let player = VLCMediaPlayer()
+        player.drawable = view
+        player.delegate = context.coordinator
+        context.coordinator.player = player
+        context.coordinator.initialSeekMs = initialSeekMs
+        context.coordinator.hasPerformedInitialSeek = false
+
+        let media = VLCMedia(url: url)
+        player.media = media
+        player.play()
+
+        return view
+    }
+
+    func updateUIView(_ view: UIView, context: Context) {
+        guard let player = context.coordinator.player else { return }
+        // If the URL changed, replace the media
+        if let currentURL = player.media?.url, currentURL != url {
+            player.stop()
+            let media = VLCMedia(url: url)
+            player.media = media
+            context.coordinator.initialSeekMs = initialSeekMs
+            context.coordinator.hasPerformedInitialSeek = false
+            player.play()
+        }
+    }
+
+    static func dismantleUIView(_ view: UIView, coordinator: Coordinator) {
+        coordinator.cleanup()
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onStatusChange: onStatusChange, onError: onError, onTimeUpdate: onTimeUpdate)
+    }
+
+    final class Coordinator: NSObject, @preconcurrency VLCMediaPlayerDelegate, Sendable {
+        nonisolated(unsafe) var player: VLCMediaPlayer?
+        nonisolated(unsafe) var initialSeekMs: Int?
+        nonisolated(unsafe) var hasPerformedInitialSeek: Bool = false
+        nonisolated(unsafe) var lastReportedTimeMs: Int = 0
+
+        let onStatusChange: @Sendable (PlaybackStatus) -> Void
+        let onError: @Sendable (PlayerError) -> Void
+        let onTimeUpdate: @Sendable (Int, Int?) -> Void
+
+        init(
+            onStatusChange: @escaping @Sendable (PlaybackStatus) -> Void,
+            onError: @escaping @Sendable (PlayerError) -> Void,
+            onTimeUpdate: @escaping @Sendable (Int, Int?) -> Void
+        ) {
+            self.onStatusChange = onStatusChange
+            self.onError = onError
+            self.onTimeUpdate = onTimeUpdate
+        }
+
+        func mediaPlayerStateChanged(_ aNotification: Notification) {
+            guard let player else { return }
+            switch player.state {
+            case .stopped:
+                break
+            case .opening, .buffering:
+                onStatusChange(.loading)
+            case .playing:
+                performInitialSeekIfNeeded()
+                onStatusChange(.playing)
+            case .paused:
+                onStatusChange(.paused)
+            case .ended:
+                onStatusChange(.paused)
+            case .error:
+                onError(.unknown("VLCKit playback error"))
+            case .esAdded:
+                break
+            @unknown default:
+                break
+            }
+        }
+
+        func mediaPlayerTimeChanged(_ aNotification: Notification) {
+            guard let player else { return }
+            let positionMs = Int(player.time.intValue)
+            let durationMs: Int?
+            if let length = player.media?.length, length.intValue > 0 {
+                durationMs = Int(length.intValue)
+            } else {
+                durationMs = nil
+            }
+
+            // Report time updates every ~10 seconds to match AVPlayer behavior
+            if abs(positionMs - lastReportedTimeMs) >= 10_000 {
+                lastReportedTimeMs = positionMs
+                onTimeUpdate(positionMs, durationMs)
+            }
+        }
+
+        private func performInitialSeekIfNeeded() {
+            guard !hasPerformedInitialSeek, let seekMs = initialSeekMs, seekMs > 0, let player else { return }
+            hasPerformedInitialSeek = true
+            player.time = VLCTime(int: Int32(seekMs))
+        }
+
+        func cleanup() {
+            player?.stop()
+            player?.delegate = nil
+            player = nil
+        }
+    }
+}
+#endif

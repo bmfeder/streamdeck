@@ -54,7 +54,24 @@ public struct VideoPlayerView: View {
                 vlcPlaceholder
                 #endif
             } else {
+                #if os(tvOS) || os(iOS)
+                VLCKitWrapperView(
+                    url: url,
+                    initialSeekMs: store.resumePositionMs,
+                    onStatusChange: { status in
+                        store.send(.playerStatusChanged(status))
+                    },
+                    onError: { error in
+                        store.send(.playerEncounteredError(error))
+                    },
+                    onTimeUpdate: { positionMs, durationMs in
+                        store.send(.timeUpdated(positionMs: positionMs, durationMs: durationMs))
+                    }
+                )
+                .ignoresSafeArea()
+                #else
                 vlcPlaceholder
+                #endif
             }
         case .stop, .none:
             EmptyView()
