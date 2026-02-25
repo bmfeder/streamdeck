@@ -165,4 +165,25 @@ final class FavoritesFeatureTests: XCTestCase {
             $0.isLoading = false
         }
     }
+
+    // MARK: - Pull to Refresh
+
+    func testRefreshTapped_reloadsChannels() async {
+        var state = FavoritesFeature.State()
+        state.channels = [makeChannel(id: "ch-1", name: "CNN")]
+
+        let store = TestStore(initialState: state) {
+            FavoritesFeature()
+        } withDependencies: {
+            $0.channelListClient.fetchFavorites = { [] }
+        }
+
+        await store.send(.refreshTapped) {
+            $0.isLoading = true
+        }
+        await store.receive(\.channelsLoaded.success) {
+            $0.isLoading = false
+            $0.channels = []
+        }
+    }
 }

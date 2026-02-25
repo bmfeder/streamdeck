@@ -284,4 +284,77 @@ final class MoviesFeatureTests: XCTestCase {
             ]
         }
     }
+
+    // MARK: - Pull to Refresh
+
+    func testRefreshTapped_resetsAndReloads() async {
+        let playlist = makePlaylist()
+        var state = MoviesFeature.State()
+        state.playlists = [playlist]
+        state.selectedPlaylistID = "pl-1"
+        state.movies = [makeMovie()]
+        state.displayedMovies = [makeMovie()]
+
+        let store = TestStore(initialState: state) {
+            MoviesFeature()
+        } withDependencies: {
+            $0.vodListClient.fetchPlaylists = { [playlist] }
+            $0.vodListClient.fetchMovies = { _ in [] }
+            $0.vodListClient.fetchGenres = { _, _ in [] }
+            $0.watchProgressClient.getProgressBatch = { _ in [:] }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.refreshTapped) {
+            $0.playlists = []
+            $0.movies = []
+            $0.genres = []
+            $0.selectedGenre = "All"
+            $0.displayedMovies = []
+            $0.searchQuery = ""
+            $0.searchResults = nil
+            $0.progressMap = [:]
+            $0.errorMessage = nil
+            $0.isLoading = true
+        }
+        await store.skipReceivedActions()
+    }
+
+    func testRefreshTapped_bypassesOnAppearGuard() async {
+        let playlist = makePlaylist()
+        var state = MoviesFeature.State()
+        state.playlists = [playlist]
+
+        let loadCalled = LockIsolated(false)
+        let store = TestStore(initialState: state) {
+            MoviesFeature()
+        } withDependencies: {
+            $0.vodListClient.fetchPlaylists = {
+                loadCalled.setValue(true)
+                return [playlist]
+            }
+            $0.vodListClient.fetchMovies = { _ in [] }
+            $0.vodListClient.fetchGenres = { _, _ in [] }
+            $0.watchProgressClient.getProgressBatch = { _ in [:] }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.onAppear)
+        XCTAssertFalse(loadCalled.value)
+
+        await store.send(.refreshTapped) {
+            $0.playlists = []
+            $0.movies = []
+            $0.genres = []
+            $0.selectedGenre = "All"
+            $0.displayedMovies = []
+            $0.searchQuery = ""
+            $0.searchResults = nil
+            $0.progressMap = [:]
+            $0.errorMessage = nil
+            $0.isLoading = true
+        }
+        await store.skipReceivedActions()
+        XCTAssertTrue(loadCalled.value)
+    }
 }

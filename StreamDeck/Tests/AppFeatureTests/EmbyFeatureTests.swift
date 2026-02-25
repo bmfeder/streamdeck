@@ -461,4 +461,91 @@ final class EmbyFeatureTests: XCTestCase {
             $0.errorMessage = "Failed to load playlists: Network error"
         }
     }
+
+    // MARK: - Pull to Refresh
+
+    func testRefreshTapped_resetsAndReloads() async {
+        let playlist = makeEmbyPlaylist()
+        var state = EmbyFeature.State()
+        state.embyPlaylists = [playlist]
+        state.selectedPlaylistID = "emby-1"
+        state.movies = [makeMovie()]
+        state.displayedMovies = [makeMovie()]
+
+        let store = TestStore(initialState: state) {
+            EmbyFeature()
+        } withDependencies: {
+            $0.vodListClient.fetchPlaylists = { [playlist] }
+            $0.vodListClient.fetchMovies = { _ in [] }
+            $0.vodListClient.fetchGenres = { _, _ in [] }
+            $0.watchProgressClient.getProgressBatch = { _ in [:] }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.refreshTapped) {
+            $0.embyPlaylists = []
+            $0.movies = []
+            $0.displayedMovies = []
+            $0.seriesList = []
+            $0.displayedSeries = []
+            $0.genres = []
+            $0.selectedGenre = "All"
+            $0.searchQuery = ""
+            $0.searchResults = nil
+            $0.selectedSeries = nil
+            $0.episodes = []
+            $0.seasons = []
+            $0.selectedSeason = nil
+            $0.displayedEpisodes = []
+            $0.progressMap = [:]
+            $0.errorMessage = nil
+            $0.isLoading = true
+        }
+        await store.skipReceivedActions()
+    }
+
+    func testRefreshTapped_bypassesOnAppearGuard() async {
+        let playlist = makeEmbyPlaylist()
+        var state = EmbyFeature.State()
+        state.embyPlaylists = [playlist]
+
+        let loadCalled = LockIsolated(false)
+        let store = TestStore(initialState: state) {
+            EmbyFeature()
+        } withDependencies: {
+            $0.vodListClient.fetchPlaylists = {
+                loadCalled.setValue(true)
+                return [playlist]
+            }
+            $0.vodListClient.fetchMovies = { _ in [] }
+            $0.vodListClient.fetchGenres = { _, _ in [] }
+            $0.watchProgressClient.getProgressBatch = { _ in [:] }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.onAppear)
+        XCTAssertFalse(loadCalled.value)
+
+        await store.send(.refreshTapped) {
+            $0.embyPlaylists = []
+            $0.movies = []
+            $0.displayedMovies = []
+            $0.seriesList = []
+            $0.displayedSeries = []
+            $0.genres = []
+            $0.selectedGenre = "All"
+            $0.searchQuery = ""
+            $0.searchResults = nil
+            $0.selectedSeries = nil
+            $0.episodes = []
+            $0.seasons = []
+            $0.selectedSeason = nil
+            $0.displayedEpisodes = []
+            $0.progressMap = [:]
+            $0.errorMessage = nil
+            $0.isLoading = true
+        }
+        await store.skipReceivedActions()
+        XCTAssertTrue(loadCalled.value)
+    }
 }

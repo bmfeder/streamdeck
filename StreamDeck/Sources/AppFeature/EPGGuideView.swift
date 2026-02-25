@@ -28,6 +28,7 @@ public struct EPGGuideView: View {
             }
             .navigationTitle(Tab.guide.title)
             .onAppear { store.send(.onAppear) }
+            .refreshable { store.send(.refreshTapped) }
             .task {
                 while !Task.isCancelled {
                     try? await Task.sleep(for: .seconds(60))

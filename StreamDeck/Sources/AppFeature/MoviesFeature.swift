@@ -40,6 +40,7 @@ public struct MoviesFeature {
         case searchResultsLoaded(Result<[VodItemRecord], Error>)
         case movieTapped(VodItemRecord)
         case progressMapLoaded([String: WatchProgressRecord])
+        case refreshTapped
         case retryTapped
         case videoPlayer(PresentationAction<VideoPlayerFeature.Action>)
         case delegate(Delegate)
@@ -71,14 +72,19 @@ public struct MoviesFeature {
 
             case .onAppear:
                 guard state.playlists.isEmpty else { return .none }
-                state.isLoading = true
-                let client = vodListClient
-                return .run { send in
-                    let playlists = try await client.fetchPlaylists()
-                    await send(.playlistsLoaded(.success(playlists)))
-                } catch: { error, send in
-                    await send(.playlistsLoaded(.failure(error)))
-                }
+                return loadPlaylists(&state)
+
+            case .refreshTapped:
+                state.playlists = []
+                state.movies = []
+                state.genres = []
+                state.selectedGenre = "All"
+                state.displayedMovies = []
+                state.searchQuery = ""
+                state.searchResults = nil
+                state.progressMap = [:]
+                state.errorMessage = nil
+                return loadPlaylists(&state)
 
             case let .playlistsLoaded(.success(playlists)):
                 state.playlists = playlists
@@ -214,6 +220,17 @@ public struct MoviesFeature {
 
     // MARK: - Helpers
 
+    private func loadPlaylists(_ state: inout State) -> Effect<Action> {
+        state.isLoading = true
+        let client = vodListClient
+        return .run { send in
+            let playlists = try await client.fetchPlaylists()
+            await send(.playlistsLoaded(.success(playlists)))
+        } catch: { error, send in
+            await send(.playlistsLoaded(.failure(error)))
+        }
+    }
+
     private func loadMovies(playlistID: String) -> Effect<Action> {
         let client = vodListClient
         return .run { send in
@@ -268,6 +285,7 @@ public struct MoviesView: View {
             }
             .navigationTitle(Tab.movies.title)
             .onAppear { store.send(.onAppear) }
+            .refreshable { store.send(.refreshTapped) }
             #if os(tvOS) || os(iOS)
             .fullScreenCover(
                 item: $store.scope(state: \.videoPlayer, action: \.videoPlayer)

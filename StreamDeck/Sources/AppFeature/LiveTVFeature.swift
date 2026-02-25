@@ -42,6 +42,7 @@ public struct LiveTVFeature {
         case channelTapped(ChannelRecord)
         case toggleFavoriteTapped(String)
         case favoriteToggled(Result<String, Error>)
+        case refreshTapped
         case retryTapped
         case epgDataLoaded(Result<[String: String], Error>)
         case epgSyncCompleted(Result<EpgImportResult, Error>)
@@ -74,14 +75,19 @@ public struct LiveTVFeature {
                 return .none
             case .onAppear:
                 guard state.playlists.isEmpty else { return .none }
-                state.isLoading = true
-                let client = channelListClient
-                return .run { send in
-                    let playlists = try await client.fetchPlaylists()
-                    await send(.playlistsLoaded(.success(playlists)))
-                } catch: { error, send in
-                    await send(.playlistsLoaded(.failure(error)))
-                }
+                return loadPlaylists(&state)
+
+            case .refreshTapped:
+                state.playlists = []
+                state.groupedChannels = nil
+                state.groups = []
+                state.selectedGroup = "All"
+                state.displayedChannels = []
+                state.searchQuery = ""
+                state.searchResults = nil
+                state.nowPlaying = [:]
+                state.errorMessage = nil
+                return loadPlaylists(&state)
 
             case let .playlistsLoaded(.success(playlists)):
                 state.playlists = playlists
@@ -231,6 +237,17 @@ public struct LiveTVFeature {
         }
     }
 
+    private func loadPlaylists(_ state: inout State) -> Effect<Action> {
+        state.isLoading = true
+        let client = channelListClient
+        return .run { send in
+            let playlists = try await client.fetchPlaylists()
+            await send(.playlistsLoaded(.success(playlists)))
+        } catch: { error, send in
+            await send(.playlistsLoaded(.failure(error)))
+        }
+    }
+
     private func loadChannels(playlistID: String) -> Effect<Action> {
         let client = channelListClient
         return .run { send in
@@ -298,6 +315,7 @@ public struct LiveTVView: View {
             }
             .navigationTitle(Tab.liveTV.title)
             .onAppear { store.send(.onAppear) }
+            .refreshable { store.send(.refreshTapped) }
             #if os(tvOS) || os(iOS)
             .fullScreenCover(
                 item: $store.scope(state: \.videoPlayer, action: \.videoPlayer)

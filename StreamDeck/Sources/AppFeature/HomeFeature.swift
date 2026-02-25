@@ -29,6 +29,7 @@ public struct HomeFeature {
         case continueWatchingLoaded(Result<[ContinueWatchingItem], Error>)
         case favoritesLoaded(Result<[ChannelRecord], Error>)
         case epgDataLoaded(Result<[String: String], Error>)
+        case refreshTapped
         case continueWatchingItemTapped(ContinueWatchingItem)
         case favoriteChannelTapped(ChannelRecord)
         case videoPlayer(PresentationAction<VideoPlayerFeature.Action>)
@@ -58,7 +59,7 @@ public struct HomeFeature {
             case .videoPlayer:
                 return .none
 
-            case .onAppear:
+            case .onAppear, .refreshTapped:
                 state.isLoading = true
                 let progressClient = watchProgressClient
                 let vodClient = vodListClient
@@ -178,6 +179,7 @@ public struct HomeView: View {
             }
             .navigationTitle(Tab.home.title)
             .onAppear { store.send(.onAppear) }
+            .refreshable { store.send(.refreshTapped) }
             #if os(tvOS) || os(iOS)
             .fullScreenCover(
                 item: $store.scope(state: \.videoPlayer, action: \.videoPlayer)

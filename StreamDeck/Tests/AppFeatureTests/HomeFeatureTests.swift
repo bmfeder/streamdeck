@@ -346,4 +346,21 @@ final class HomeFeatureTests: XCTestCase {
 
         await store.send(.favoritesLoaded(.failure(NSError(domain: "test", code: 1))))
     }
+
+    // MARK: - Pull to Refresh
+
+    func testRefreshTapped_reloadsData() async {
+        let store = TestStore(initialState: HomeFeature.State()) {
+            HomeFeature()
+        } withDependencies: {
+            $0.watchProgressClient.getUnfinished = { _ in [] }
+            $0.channelListClient.fetchFavorites = { [] }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.refreshTapped) {
+            $0.isLoading = true
+        }
+        await store.skipReceivedActions()
+    }
 }

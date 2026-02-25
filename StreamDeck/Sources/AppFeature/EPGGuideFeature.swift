@@ -38,6 +38,7 @@ public struct EPGGuideFeature {
         case scrolledNearEdge(TimeDirection)
         case additionalProgramsLoaded(Result<[String: [EpgProgramRecord]], Error>)
         case programTapped(EpgProgramRecord, ChannelRecord)
+        case refreshTapped
         case retryTapped
         case videoPlayer(PresentationAction<VideoPlayerFeature.Action>)
         case delegate(Delegate)
@@ -71,14 +72,16 @@ public struct EPGGuideFeature {
 
             case .onAppear:
                 guard state.playlists.isEmpty else { return .none }
-                state.isLoading = true
-                let client = channelListClient
-                return .run { send in
-                    let playlists = try await client.fetchPlaylists()
-                    await send(.playlistsLoaded(.success(playlists)))
-                } catch: { error, send in
-                    await send(.playlistsLoaded(.failure(error)))
-                }
+                return loadPlaylists(&state)
+
+            case .refreshTapped:
+                state.playlists = []
+                state.channels = []
+                state.programsByChannel = [:]
+                state.windowStart = 0
+                state.windowEnd = 0
+                state.errorMessage = nil
+                return loadPlaylists(&state)
 
             case let .playlistsLoaded(.success(playlists)):
                 state.playlists = playlists
@@ -203,6 +206,17 @@ public struct EPGGuideFeature {
     }
 
     // MARK: - Helpers
+
+    private func loadPlaylists(_ state: inout State) -> Effect<Action> {
+        state.isLoading = true
+        let client = channelListClient
+        return .run { send in
+            let playlists = try await client.fetchPlaylists()
+            await send(.playlistsLoaded(.success(playlists)))
+        } catch: { error, send in
+            await send(.playlistsLoaded(.failure(error)))
+        }
+    }
 
     private func loadChannels(playlistID: String) -> Effect<Action> {
         let client = channelListClient

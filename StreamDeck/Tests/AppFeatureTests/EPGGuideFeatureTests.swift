@@ -496,4 +496,73 @@ final class EPGGuideFeatureTests: XCTestCase {
         state.channels = [makeChannel(id: "ch-1")]
         XCTAssertFalse(state.hasData)
     }
+
+    // MARK: - Pull to Refresh
+
+    func testRefreshTapped_resetsAndReloads() async {
+        let playlist = makePlaylist()
+        var state = EPGGuideFeature.State()
+        state.playlists = [playlist]
+        state.selectedPlaylistID = "pl-1"
+        state.channels = [makeChannel(id: "ch-1")]
+        state.programsByChannel = ["CNN.us": [makeProgram(id: "p1", channelEpgID: "CNN.us", startTime: 1000, endTime: 2000)]]
+        state.windowStart = 1000
+        state.windowEnd = 5000
+
+        let store = TestStore(initialState: state) {
+            EPGGuideFeature()
+        } withDependencies: {
+            $0.channelListClient.fetchPlaylists = { [playlist] }
+            $0.channelListClient.fetchGroupedChannels = { _ in GroupedChannels(groups: [], channelsByGroup: [:]) }
+            $0.epgClient.fetchProgramsBatch = { _, _, _ in [:] }
+            $0.date = .constant(Date(timeIntervalSince1970: 1_700_000_000))
+        }
+        store.exhaustivity = .off
+
+        await store.send(.refreshTapped) {
+            $0.playlists = []
+            $0.channels = []
+            $0.programsByChannel = [:]
+            $0.windowStart = 0
+            $0.windowEnd = 0
+            $0.errorMessage = nil
+            $0.isLoading = true
+        }
+        await store.skipReceivedActions()
+    }
+
+    func testRefreshTapped_bypassesOnAppearGuard() async {
+        let playlist = makePlaylist()
+        var state = EPGGuideFeature.State()
+        state.playlists = [playlist]
+
+        let loadCalled = LockIsolated(false)
+        let store = TestStore(initialState: state) {
+            EPGGuideFeature()
+        } withDependencies: {
+            $0.channelListClient.fetchPlaylists = {
+                loadCalled.setValue(true)
+                return [playlist]
+            }
+            $0.channelListClient.fetchGroupedChannels = { _ in GroupedChannels(groups: [], channelsByGroup: [:]) }
+            $0.epgClient.fetchProgramsBatch = { _, _, _ in [:] }
+            $0.date = .constant(Date(timeIntervalSince1970: 1_700_000_000))
+        }
+        store.exhaustivity = .off
+
+        await store.send(.onAppear)
+        XCTAssertFalse(loadCalled.value)
+
+        await store.send(.refreshTapped) {
+            $0.playlists = []
+            $0.channels = []
+            $0.programsByChannel = [:]
+            $0.windowStart = 0
+            $0.windowEnd = 0
+            $0.errorMessage = nil
+            $0.isLoading = true
+        }
+        await store.skipReceivedActions()
+        XCTAssertTrue(loadCalled.value)
+    }
 }

@@ -470,4 +470,77 @@ final class LiveTVFeatureTests: XCTestCase {
             $0.errorMessage = nil
         }
     }
+
+    // MARK: - Pull to Refresh
+
+    func testRefreshTapped_resetsAndReloads() async {
+        let playlist = makePlaylist()
+        let grouped = makeGroupedChannels()
+        var state = LiveTVFeature.State()
+        state.playlists = [playlist]
+        state.selectedPlaylistID = "pl-1"
+        state.groupedChannels = grouped
+        state.groups = ["All", "News", "Sports"]
+        state.displayedChannels = grouped.allChannels
+
+        let store = TestStore(initialState: state) {
+            LiveTVFeature()
+        } withDependencies: {
+            $0.channelListClient.fetchPlaylists = { [playlist] }
+            $0.channelListClient.fetchGroupedChannels = { _ in GroupedChannels(groups: [], channelsByGroup: [:]) }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.refreshTapped) {
+            $0.playlists = []
+            $0.groupedChannels = nil
+            $0.groups = []
+            $0.selectedGroup = "All"
+            $0.displayedChannels = []
+            $0.searchQuery = ""
+            $0.searchResults = nil
+            $0.nowPlaying = [:]
+            $0.errorMessage = nil
+            $0.isLoading = true
+        }
+        await store.skipReceivedActions()
+    }
+
+    func testRefreshTapped_bypassesOnAppearGuard() async {
+        let playlist = makePlaylist()
+        var state = LiveTVFeature.State()
+        state.playlists = [playlist]
+
+        let loadCalled = LockIsolated(false)
+        let store = TestStore(initialState: state) {
+            LiveTVFeature()
+        } withDependencies: {
+            $0.channelListClient.fetchPlaylists = {
+                loadCalled.setValue(true)
+                return [playlist]
+            }
+            $0.channelListClient.fetchGroupedChannels = { _ in GroupedChannels(groups: [], channelsByGroup: [:]) }
+        }
+        store.exhaustivity = .off
+
+        // onAppear should be a no-op since playlists are loaded
+        await store.send(.onAppear)
+        XCTAssertFalse(loadCalled.value)
+
+        // refreshTapped should reload
+        await store.send(.refreshTapped) {
+            $0.playlists = []
+            $0.groupedChannels = nil
+            $0.groups = []
+            $0.selectedGroup = "All"
+            $0.displayedChannels = []
+            $0.searchQuery = ""
+            $0.searchResults = nil
+            $0.nowPlaying = [:]
+            $0.errorMessage = nil
+            $0.isLoading = true
+        }
+        await store.skipReceivedActions()
+        XCTAssertTrue(loadCalled.value)
+    }
 }

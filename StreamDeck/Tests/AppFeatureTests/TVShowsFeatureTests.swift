@@ -305,4 +305,85 @@ final class TVShowsFeatureTests: XCTestCase {
             $0.progressMap = ["e1": 0.5]
         }
     }
+
+    // MARK: - Pull to Refresh
+
+    func testRefreshTapped_resetsAndReloads() async {
+        let playlist = makePlaylist()
+        var state = TVShowsFeature.State()
+        state.playlists = [playlist]
+        state.selectedPlaylistID = "pl-1"
+        state.seriesList = [makeSeries()]
+        state.displayedSeries = [makeSeries()]
+
+        let store = TestStore(initialState: state) {
+            TVShowsFeature()
+        } withDependencies: {
+            $0.vodListClient.fetchPlaylists = { [playlist] }
+            $0.vodListClient.fetchSeries = { _ in [] }
+            $0.vodListClient.fetchGenres = { _, _ in [] }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.refreshTapped) {
+            $0.playlists = []
+            $0.seriesList = []
+            $0.genres = []
+            $0.selectedGenre = "All"
+            $0.displayedSeries = []
+            $0.searchQuery = ""
+            $0.searchResults = nil
+            $0.selectedSeries = nil
+            $0.episodes = []
+            $0.seasons = []
+            $0.selectedSeason = nil
+            $0.displayedEpisodes = []
+            $0.progressMap = [:]
+            $0.errorMessage = nil
+            $0.isLoading = true
+        }
+        await store.skipReceivedActions()
+    }
+
+    func testRefreshTapped_bypassesOnAppearGuard() async {
+        let playlist = makePlaylist()
+        var state = TVShowsFeature.State()
+        state.playlists = [playlist]
+
+        let loadCalled = LockIsolated(false)
+        let store = TestStore(initialState: state) {
+            TVShowsFeature()
+        } withDependencies: {
+            $0.vodListClient.fetchPlaylists = {
+                loadCalled.setValue(true)
+                return [playlist]
+            }
+            $0.vodListClient.fetchSeries = { _ in [] }
+            $0.vodListClient.fetchGenres = { _, _ in [] }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.onAppear)
+        XCTAssertFalse(loadCalled.value)
+
+        await store.send(.refreshTapped) {
+            $0.playlists = []
+            $0.seriesList = []
+            $0.genres = []
+            $0.selectedGenre = "All"
+            $0.displayedSeries = []
+            $0.searchQuery = ""
+            $0.searchResults = nil
+            $0.selectedSeries = nil
+            $0.episodes = []
+            $0.seasons = []
+            $0.selectedSeason = nil
+            $0.displayedEpisodes = []
+            $0.progressMap = [:]
+            $0.errorMessage = nil
+            $0.isLoading = true
+        }
+        await store.skipReceivedActions()
+        XCTAssertTrue(loadCalled.value)
+    }
 }

@@ -72,6 +72,7 @@ public struct EmbyFeature {
         case searchQueryChanged(String)
         case searchResultsLoaded(Result<[VodItemRecord], Error>)
         case progressMapLoaded([String: WatchProgressRecord])
+        case refreshTapped
         case retryTapped
         case videoPlayer(PresentationAction<VideoPlayerFeature.Action>)
         case delegate(Delegate)
@@ -104,14 +105,26 @@ public struct EmbyFeature {
 
             case .onAppear:
                 guard state.embyPlaylists.isEmpty else { return .none }
-                state.isLoading = true
-                let client = vodListClient
-                return .run { send in
-                    let playlists = try await client.fetchPlaylists()
-                    await send(.playlistsLoaded(.success(playlists)))
-                } catch: { error, send in
-                    await send(.playlistsLoaded(.failure(error)))
-                }
+                return loadPlaylists(&state)
+
+            case .refreshTapped:
+                state.embyPlaylists = []
+                state.movies = []
+                state.displayedMovies = []
+                state.seriesList = []
+                state.displayedSeries = []
+                state.genres = []
+                state.selectedGenre = "All"
+                state.searchQuery = ""
+                state.searchResults = nil
+                state.selectedSeries = nil
+                state.episodes = []
+                state.seasons = []
+                state.selectedSeason = nil
+                state.displayedEpisodes = []
+                state.progressMap = [:]
+                state.errorMessage = nil
+                return loadPlaylists(&state)
 
             case let .playlistsLoaded(.success(playlists)):
                 let embyPlaylists = playlists.filter { $0.type == "emby" }
@@ -359,6 +372,17 @@ public struct EmbyFeature {
 
     // MARK: - Helpers
 
+    private func loadPlaylists(_ state: inout State) -> Effect<Action> {
+        state.isLoading = true
+        let client = vodListClient
+        return .run { send in
+            let playlists = try await client.fetchPlaylists()
+            await send(.playlistsLoaded(.success(playlists)))
+        } catch: { error, send in
+            await send(.playlistsLoaded(.failure(error)))
+        }
+    }
+
     private func loadContent(for mode: ContentMode, playlistID: String) -> Effect<Action> {
         let client = vodListClient
         switch mode {
@@ -427,6 +451,7 @@ public struct EmbyView: View {
             }
             .navigationTitle(navigationTitle)
             .onAppear { store.send(.onAppear) }
+            .refreshable { store.send(.refreshTapped) }
             #if os(tvOS) || os(iOS)
             .fullScreenCover(
                 item: $store.scope(state: \.videoPlayer, action: \.videoPlayer)

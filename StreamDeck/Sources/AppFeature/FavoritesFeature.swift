@@ -19,6 +19,7 @@ public struct FavoritesFeature {
 
     public enum Action: Sendable {
         case onAppear
+        case refreshTapped
         case channelsLoaded(Result<[ChannelRecord], Error>)
         case channelTapped(ChannelRecord)
         case toggleFavoriteTapped(String)
@@ -48,7 +49,7 @@ public struct FavoritesFeature {
             case .videoPlayer:
                 return .none
 
-            case .onAppear:
+            case .onAppear, .refreshTapped:
                 state.isLoading = true
                 let client = channelListClient
                 return .run { send in
@@ -172,6 +173,7 @@ public struct FavoritesView: View {
             }
             .navigationTitle(Tab.favorites.title)
             .onAppear { store.send(.onAppear) }
+            .refreshable { store.send(.refreshTapped) }
             #if os(tvOS) || os(iOS)
             .fullScreenCover(
                 item: $store.scope(state: \.videoPlayer, action: \.videoPlayer)
