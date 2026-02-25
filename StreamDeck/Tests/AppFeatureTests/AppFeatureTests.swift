@@ -76,6 +76,21 @@ final class AppFeatureTests: XCTestCase {
 
     // MARK: - Child Feature Actions
 
+    func testSearchQueryChanged_passesThrough() async {
+        let store = TestStore(initialState: AppFeature.State()) {
+            AppFeature()
+        } withDependencies: {
+            $0.channelListClient.searchChannels = { _, _ in [] }
+            $0.vodListClient.searchVod = { _, _, _ in [] }
+        }
+        store.exhaustivity = .off
+        await store.send(.search(.searchQueryChanged("test"))) {
+            $0.search.searchQuery = "test"
+            $0.search.isSearching = true
+        }
+        await store.skipReceivedActions()
+    }
+
     func testHomeOnAppear_loadsData() async {
         let store = TestStore(initialState: AppFeature.State()) {
             AppFeature()
@@ -154,8 +169,8 @@ final class AppFeatureTests: XCTestCase {
 
     // MARK: - Tab Enum
 
-    func testTabCaseIterable_hasEight() {
-        XCTAssertEqual(Tab.allCases.count, 8)
+    func testTabCaseIterable_hasNine() {
+        XCTAssertEqual(Tab.allCases.count, 9)
     }
 
     func testTabTitles_areNonEmpty() {

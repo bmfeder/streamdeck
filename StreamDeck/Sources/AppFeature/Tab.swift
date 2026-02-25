@@ -3,6 +3,7 @@ import Foundation
 /// The tabs available in the app sidebar.
 public enum Tab: String, CaseIterable, Hashable, Sendable {
     case home
+    case search
     case liveTV
     case guide
     case movies
@@ -14,6 +15,7 @@ public enum Tab: String, CaseIterable, Hashable, Sendable {
     public var title: String {
         switch self {
         case .home: "Home"
+        case .search: "Search"
         case .liveTV: "Live TV"
         case .guide: "Guide"
         case .movies: "Movies"
@@ -27,6 +29,7 @@ public enum Tab: String, CaseIterable, Hashable, Sendable {
     public var systemImage: String {
         switch self {
         case .home: "house"
+        case .search: "magnifyingglass"
         case .liveTV: "play.tv"
         case .guide: "calendar.day.timeline.left"
         case .movies: "film"
@@ -40,6 +43,7 @@ public enum Tab: String, CaseIterable, Hashable, Sendable {
     public var emptyStateMessage: String {
         switch self {
         case .home: "Welcome to StreamDeck. Add a playlist source to get started."
+        case .search: "Search across all your content — channels, movies, and TV shows."
         case .liveTV: "No channels yet. Add an M3U playlist or Xtream login."
         case .guide: "Guide data unavailable. Import EPG data from Settings to see program listings."
         case .movies: "No movies found. Add a source with VOD content."

@@ -9,6 +9,7 @@ public struct AppFeature {
         public var hasAcceptedDisclaimer: Bool = false
 
         public var home = HomeFeature.State()
+        public var search = SearchFeature.State()
         public var liveTV = LiveTVFeature.State()
         public var guide = EPGGuideFeature.State()
         public var movies = MoviesFeature.State()
@@ -26,6 +27,7 @@ public struct AppFeature {
         case acceptDisclaimerTapped
 
         case home(HomeFeature.Action)
+        case search(SearchFeature.Action)
         case liveTV(LiveTVFeature.Action)
         case guide(EPGGuideFeature.Action)
         case movies(MoviesFeature.Action)
@@ -41,6 +43,7 @@ public struct AppFeature {
 
     public var body: some ReducerOf<Self> {
         Scope(state: \.home, action: \.home) { HomeFeature() }
+        Scope(state: \.search, action: \.search) { SearchFeature() }
         Scope(state: \.liveTV, action: \.liveTV) { LiveTVFeature() }
         Scope(state: \.guide, action: \.guide) { EPGGuideFeature() }
         Scope(state: \.movies, action: \.movies) { MoviesFeature() }
@@ -63,7 +66,7 @@ public struct AppFeature {
                 state.hasAcceptedDisclaimer = true
                 userDefaultsClient.setBool(true, UserDefaultsKey.hasAcceptedDisclaimer)
                 return .none
-            case .home, .liveTV, .guide, .movies, .tvShows, .emby, .favorites, .settings:
+            case .home, .search, .liveTV, .guide, .movies, .tvShows, .emby, .favorites, .settings:
                 return .none
             }
         }
@@ -96,6 +99,9 @@ public struct AppView: View {
         TabView(selection: $store.selectedTab.sending(\.tabSelected)) {
             SwiftUI.Tab(Tab.home.title, systemImage: Tab.home.systemImage, value: Tab.home) {
                 HomeView(store: store.scope(state: \.home, action: \.home))
+            }
+            SwiftUI.Tab(Tab.search.title, systemImage: Tab.search.systemImage, value: Tab.search) {
+                SearchView(store: store.scope(state: \.search, action: \.search))
             }
             SwiftUI.Tab(Tab.liveTV.title, systemImage: Tab.liveTV.systemImage, value: Tab.liveTV) {
                 LiveTVView(store: store.scope(state: \.liveTV, action: \.liveTV))
