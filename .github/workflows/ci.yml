@@ -13,7 +13,7 @@ concurrency:
 jobs:
   swift-test:
     name: Swift Package Tests
-    runs-on: macos-latest
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
 
@@ -30,7 +30,7 @@ jobs:
 
   xcode-build:
     name: tvOS Build
-    runs-on: macos-latest
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
 
