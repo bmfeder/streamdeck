@@ -12,7 +12,7 @@ StreamDeck is a cross-platform IPTV/Emby media player app, similar to KDTivi. Pr
 - **Video**: AVPlayer (primary) + VLCKit (fallback via on-demand resources). FFprobeKit for codec probing (<200ms).
 - **Networking**: Ktor (KMP) — or URLSession for Swift-only phase.
 - **Image Loading**: Coil Multiplatform (KMP).
-- **Local Storage**: SQLDelight (KMP shared DB).
+- **Local Storage**: GRDB.swift (Swift-first phase). Will port schema to SQLDelight in KMP shared module for Android (Phase 4).
 - **DI**: Koin (KMP).
 - **Security**: Keychain for credentials. Never store passwords in SQLite.
 - **Subscriptions**: StoreKit 2 (Apple-only). Add RevenueCat when Android launches.
@@ -34,45 +34,47 @@ Channels use three-tier IDs: `playlist_id` (source) → `source_channel_id` (pro
 ```
 streamdeck/
 ├── CLAUDE.md                  ← you are here
+├── StreamDeck.xcodeproj       ← Xcode project (tvOS app)
+├── App/                       ← tvOS app target (SwiftUI)
+│   ├── StreamDeckApp.swift
+│   ├── ContentView.swift
+│   └── Assets.xcassets/
+├── StreamDeck/                ← Swift Package (parsers, models, tests)
+│   ├── Package.swift
+│   ├── Sources/M3UParser/     ← M3U/M3U8 parser (41 tests)
+│   ├── Sources/XtreamClient/  ← Xtream Codes API client (57 tests)
+│   ├── Sources/XMLTVParser/   ← XMLTV EPG parser, SAX-style (57 tests)
+│   └── Tests/
+├── Shared/                    ← KMP shared module (empty shell, for Android phase)
 ├── docs/
 │   └── app-design-v2.html    ← full design spec (open in browser to read)
-├── tasks/
-│   └── streamdeck-tasks.xlsx  ← Phase 0 + Phase 1 task tracker
-├── StreamDeck/                ← Swift Package (M3U parser, models, tests)
-│   ├── Package.swift
-│   ├── Sources/M3UParser/
-│   │   ├── M3UParser.swift    ← production M3U/M3U8 parser
-│   │   └── Models.swift       ← ParsedChannel, M3UParseResult, etc.
-│   └── Tests/M3UParserTests/
-│       ├── M3UParserTests.swift  ← 38 test cases
-│       └── M3UFixtures.swift     ← 20 test playlists (edge cases)
-├── App/                       ← tvOS app target (to be created)
-└── Shared/                    ← KMP shared module (to be created)
+└── tasks/
+    └── streamdeck-tasks.xlsx  ← Phase 0 + Phase 1 task tracker
 ```
 
 ## Current Status
 - **Phase 0 — In Progress**
 - Design spec v2.1 complete (16 sections, reviewed twice)
-- M3U parser written and tested (38 test cases, 20 fixture playlists)
+- M3U parser written and tested (41 tests, 20 fixture playlists)
+- Xtream Codes API client written and tested (57 tests)
+- XMLTV EPG parser written and tested (57 tests, SAX-style incremental)
+- Xcode project created (tvOS 26.0+, SwiftUI lifecycle)
+- Local Swift Package linked (M3UParser, XtreamClient, XMLTVParser)
+- KMP shared module scaffolded (empty shell)
 - Task tracker created with Phase 0 (16 tasks) and Phase 1 (29 tasks)
-- No Xcode project yet — Swift Package only
 
 ## What to Build Next (Phase 0 remaining)
 Reference: tasks/streamdeck-tasks.xlsx, "Phase 0 — Scaffolding" sheet
-1. Create Xcode project with tvOS target (SwiftUI lifecycle, tvOS 17.0+)
-2. Add empty KMP shared module (can defer if focusing Swift-only first)
-3. Configure SPM dependencies (VLCKit, TCA, SQLDelight)
-4. Xtream Codes API client + unit tests with mock HTTP responses
-5. XMLTV EPG parser (incremental/SAX-style) + tests
-6. SQLDelight schema v1 (all tables from design spec §06)
-7. TCA skeleton with sidebar navigation
-8. GitHub Actions CI (build + test)
-9. TestFlight setup
+1. Configure SPM dependencies (TCA, GRDB, VLCKit)
+2. GRDB schema v1 (all tables from design spec §06)
+3. TCA skeleton with sidebar navigation
+4. GitHub Actions CI (build + test)
+5. TestFlight setup
 
 ## Coding Conventions
 
 ### Swift
-- Swift 5.9+, iOS/tvOS 17.0+ deployment target
+- Swift 6.2+, tvOS 26.0+ / iOS 26.0+ deployment target (latest APIs, Liquid Glass, newest SwiftUI)
 - SwiftUI for all views, UIKit only for AVPlayer wrapping
 - Use Swift concurrency (async/await, actors) — no Combine
 - TCA for state management (1.x with @Reducer macro)
@@ -97,7 +99,7 @@ When you need specifics, read docs/app-design-v2.html:
 - §02: Architecture diagram + playback capability matrix + fallback policy
 - §04b: Empty/degraded state definitions (8 states)
 - §05: tvOS focus restoration rules (7 navigation events)
-- §06: Complete SQLDelight schema with identity strategy
+- §06: Complete database schema with identity strategy (using GRDB.swift for Swift-first phase)
 - §07: Roadmap with phase exit criteria
 - §08: Feature entitlement matrix (free vs premium)
 - §09a: Legal compliance posture (App Store survival)

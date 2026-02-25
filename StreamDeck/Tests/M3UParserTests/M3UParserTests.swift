@@ -435,13 +435,14 @@ final class M3UParserTests: XCTestCase {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     func testParserIsSendable_canCallFromMultipleThreads() async {
+        let sharedParser = M3UParser()
         let content = M3UFixtures.hugePlaylist(count: 100)
 
         // Parse on multiple concurrent tasks — should not crash
         await withTaskGroup(of: M3UParseResult.self) { group in
             for _ in 0..<10 {
                 group.addTask {
-                    self.parser.parse(content: content)
+                    sharedParser.parse(content: content)
                 }
             }
 
