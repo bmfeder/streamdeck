@@ -27,6 +27,7 @@ public struct TVShowsFeature {
         public var selectedSeason: Int?
         public var displayedEpisodes: [VodItemRecord] = []
         public var isLoadingEpisodes: Bool = false
+        public var progressMap: [String: Double] = [:]
 
         @Presents public var videoPlayer: VideoPlayerFeature.State?
 
@@ -48,6 +49,7 @@ public struct TVShowsFeature {
         case episodesLoaded(Result<[VodItemRecord], Error>)
         case seasonSelected(Int)
         case episodeTapped(VodItemRecord)
+        case progressMapLoaded([String: WatchProgressRecord])
         case backToSeriesTapped
         case retryTapped
         case videoPlayer(PresentationAction<VideoPlayerFeature.Action>)
@@ -60,6 +62,7 @@ public struct TVShowsFeature {
     }
 
     @Dependency(\.vodListClient) var vodListClient
+    @Dependency(\.watchProgressClient) var watchProgressClient
 
     public init() {}
 
@@ -203,7 +206,12 @@ public struct TVShowsFeature {
                 } else {
                     state.displayedEpisodes = episodes
                 }
-                return .none
+                let ids = episodes.map(\.id)
+                let progressClient = watchProgressClient
+                return .run { send in
+                    let batch = try await progressClient.getProgressBatch(ids)
+                    await send(.progressMapLoaded(batch))
+                }
 
             case let .episodesLoaded(.failure(error)):
                 state.isLoadingEpisodes = false
@@ -213,6 +221,16 @@ public struct TVShowsFeature {
             case let .seasonSelected(season):
                 state.selectedSeason = season
                 state.displayedEpisodes = state.episodes.filter { $0.seasonNum == season }
+                return .none
+
+            case let .progressMapLoaded(batch):
+                var map: [String: Double] = [:]
+                for (id, record) in batch {
+                    if let duration = record.durationMs, duration > 0 {
+                        map[id] = Double(record.positionMs) / Double(duration)
+                    }
+                }
+                state.progressMap = map
                 return .none
 
             case let .episodeTapped(episode):
@@ -487,6 +505,18 @@ public struct TVShowsView: View {
             Image(systemName: "play.circle")
                 .font(.title2)
                 .foregroundStyle(.secondary)
+        }
+        .overlay(alignment: .bottom) {
+            if let progress = store.progressMap[episode.id], progress > 0 {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Rectangle().fill(Color.secondary.opacity(0.2))
+                        Rectangle().fill(Color.accentColor)
+                            .frame(width: geo.size.width * min(max(progress, 0), 1))
+                    }
+                }
+                .frame(height: 3)
+            }
         }
         .padding(.vertical, 4)
         .scaleEffect(focusedItemID == episode.id ? 1.02 : 1.0)

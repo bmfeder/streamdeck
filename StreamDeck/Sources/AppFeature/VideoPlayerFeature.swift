@@ -16,6 +16,11 @@ public struct VideoPlayerFeature {
         public var hasTriedFallbackEngine: Bool = false
         public var isOverlayVisible: Bool = true
 
+        // Watch progress
+        public var resumePositionMs: Int?
+        public var currentPositionMs: Int = 0
+        public var currentDurationMs: Int?
+
         public static let maxRetriesPerEngine: Int = 3
 
         public init(channel: ChannelRecord) {
@@ -43,6 +48,10 @@ public struct VideoPlayerFeature {
         case toggleOverlayTapped
         case overlayAutoHideExpired
         case retryTimerFired(attempt: Int, engine: PlayerEngine)
+        // Watch progress
+        case progressLoaded(WatchProgressRecord?)
+        case timeUpdated(positionMs: Int, durationMs: Int?)
+        case saveProgress
         case delegate(Delegate)
 
         @CasePathable
@@ -52,6 +61,7 @@ public struct VideoPlayerFeature {
     }
 
     @Dependency(\.streamRouterClient) var streamRouterClient
+    @Dependency(\.watchProgressClient) var watchProgressClient
     @Dependency(\.continuousClock) var clock
     @Dependency(\.dismiss) var dismiss
 
@@ -60,6 +70,7 @@ public struct VideoPlayerFeature {
     private enum CancelID {
         case overlayTimer
         case retryTimer
+        case progressTimer
     }
 
     public var body: some ReducerOf<Self> {
@@ -75,21 +86,38 @@ public struct VideoPlayerFeature {
                 }
                 state.status = .routing
                 let client = streamRouterClient
-                return .run { send in
-                    let route = await client.route(url)
-                    await send(.streamRouted(route))
-                }
+                let progressClient = watchProgressClient
+                let contentID = state.item.contentID
+                return .merge(
+                    .run { send in
+                        let route = await client.route(url)
+                        await send(.streamRouted(route))
+                    },
+                    .run { send in
+                        let progress = try? await progressClient.getProgress(contentID)
+                        await send(.progressLoaded(progress))
+                    }
+                )
 
             case .onDisappear:
+                let saveEffect = saveProgressEffect(state: state)
                 state.playerCommand = .stop
-                return .cancel(id: CancelID.overlayTimer)
-                    .merge(with: .cancel(id: CancelID.retryTimer))
+                return .merge(
+                    saveEffect,
+                    .cancel(id: CancelID.overlayTimer),
+                    .cancel(id: CancelID.retryTimer),
+                    .cancel(id: CancelID.progressTimer)
+                )
 
             case .dismissTapped:
+                let saveEffect = saveProgressEffect(state: state)
                 state.playerCommand = .stop
-                return .run { send in
-                    await send(.delegate(.dismissed))
-                }
+                return .merge(
+                    saveEffect,
+                    .run { send in
+                        await send(.delegate(.dismissed))
+                    }
+                )
 
             case let .streamRouted(route):
                 state.streamRoute = route
@@ -102,6 +130,7 @@ public struct VideoPlayerFeature {
                 state.status = status
                 if status == .playing {
                     state.retryCount = 0
+                    return startProgressTimer()
                 }
                 return .none
 
@@ -189,6 +218,27 @@ public struct VideoPlayerFeature {
                 }
                 return .none
 
+            // MARK: - Watch Progress
+
+            case let .progressLoaded(record):
+                if let record, record.positionMs > 10_000 {
+                    state.resumePositionMs = record.positionMs
+                }
+                if let duration = record?.durationMs {
+                    state.currentDurationMs = duration
+                }
+                return .none
+
+            case let .timeUpdated(positionMs, durationMs):
+                state.currentPositionMs = positionMs
+                if let durationMs {
+                    state.currentDurationMs = durationMs
+                }
+                return .none
+
+            case .saveProgress:
+                return saveProgressEffect(state: state)
+
             case .delegate:
                 return .none
             }
@@ -219,5 +269,27 @@ public struct VideoPlayerFeature {
             await send(.overlayAutoHideExpired)
         }
         .cancellable(id: CancelID.overlayTimer, cancelInFlight: true)
+    }
+
+    private func startProgressTimer() -> Effect<Action> {
+        let progressClock = clock
+        return .run { send in
+            for await _ in progressClock.timer(interval: .seconds(30)) {
+                await send(.saveProgress)
+            }
+        }
+        .cancellable(id: CancelID.progressTimer, cancelInFlight: true)
+    }
+
+    private func saveProgressEffect(state: State) -> Effect<Action> {
+        guard state.currentPositionMs > 0 else { return .none }
+        let client = watchProgressClient
+        let contentID = state.item.contentID
+        let playlistID = state.item.playlistID
+        let position = state.currentPositionMs
+        let duration = state.currentDurationMs
+        return .run { _ in
+            try? await client.saveProgress(contentID, playlistID, position, duration)
+        }
     }
 }

@@ -5,12 +5,16 @@ import Foundation
 
 /// A unified representation of any playable content (channel or VOD item).
 public struct PlayableItem: Equatable, Sendable {
+    public let contentID: String
+    public let playlistID: String?
     public let name: String
     public let streamURL: String
     public let groupName: String?
     public let posterURL: String?
 
-    public init(name: String, streamURL: String, groupName: String? = nil, posterURL: String? = nil) {
+    public init(contentID: String, playlistID: String? = nil, name: String, streamURL: String, groupName: String? = nil, posterURL: String? = nil) {
+        self.contentID = contentID
+        self.playlistID = playlistID
         self.name = name
         self.streamURL = streamURL
         self.groupName = groupName
@@ -18,6 +22,8 @@ public struct PlayableItem: Equatable, Sendable {
     }
 
     public init(channel: ChannelRecord) {
+        self.contentID = channel.id
+        self.playlistID = channel.playlistID
         self.name = channel.name
         self.streamURL = channel.streamURL
         self.groupName = channel.groupName
@@ -25,6 +31,8 @@ public struct PlayableItem: Equatable, Sendable {
     }
 
     public init(vodItem: VodItemRecord) {
+        self.contentID = vodItem.id
+        self.playlistID = vodItem.playlistID
         self.name = vodItem.title
         self.streamURL = vodItem.streamURL ?? ""
         self.groupName = vodItem.genre

@@ -108,6 +108,7 @@ final class TVShowsFeatureTests: XCTestCase {
             TVShowsFeature()
         } withDependencies: {
             $0.vodListClient.fetchEpisodes = { _ in episodes }
+            $0.watchProgressClient.getProgressBatch = { _ in [:] }
         }
 
         await store.send(.seriesTapped(series)) {
@@ -121,6 +122,7 @@ final class TVShowsFeatureTests: XCTestCase {
             $0.selectedSeason = 1
             $0.displayedEpisodes = [episodes[0], episodes[1]]
         }
+        await store.receive(\.progressMapLoaded)
     }
 
     func testEpisodesLoaded_noSeasons_showsAll() async {
@@ -136,6 +138,8 @@ final class TVShowsFeatureTests: XCTestCase {
 
         let store = TestStore(initialState: state) {
             TVShowsFeature()
+        } withDependencies: {
+            $0.watchProgressClient.getProgressBatch = { _ in [:] }
         }
 
         await store.send(.episodesLoaded(.success([episodeNoSeason]))) {
@@ -144,6 +148,7 @@ final class TVShowsFeatureTests: XCTestCase {
             $0.seasons = []
             $0.displayedEpisodes = [episodeNoSeason]
         }
+        await store.receive(\.progressMapLoaded)
     }
 
     // MARK: - Season Selection
@@ -275,6 +280,29 @@ final class TVShowsFeatureTests: XCTestCase {
             $0.isLoading = false
             $0.seriesList = []
             $0.displayedSeries = []
+        }
+    }
+
+    // MARK: - Progress Map
+
+    func testProgressMapLoaded_computesFractions() async {
+        var state = TVShowsFeature.State()
+        state.selectedSeries = makeSeries()
+        state.episodes = [
+            makeEpisode(id: "e1", title: "Ep1"),
+            makeEpisode(id: "e2", title: "Ep2"),
+        ]
+
+        let store = TestStore(initialState: state) {
+            TVShowsFeature()
+        }
+
+        let batch: [String: WatchProgressRecord] = [
+            "e1": WatchProgressRecord(contentID: "e1", positionMs: 1_500_000, durationMs: 3_000_000, updatedAt: 1_700_000_000),
+        ]
+
+        await store.send(.progressMapLoaded(batch)) {
+            $0.progressMap = ["e1": 0.5]
         }
     }
 }

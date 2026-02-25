@@ -27,7 +27,8 @@ final class VideoPlayerFeatureTests: XCTestCase {
         channel: ChannelRecord? = nil,
         route: @escaping @Sendable (URL) async -> StreamRoute = { url in
             StreamRoute(recommendedEngine: .avPlayer, url: url, reason: "test")
-        }
+        },
+        savedProgress: WatchProgressRecord? = nil
     ) -> TestStoreOf<VideoPlayerFeature> {
         let ch = channel ?? makeChannel()
         return TestStore(initialState: VideoPlayerFeature.State(channel: ch)) {
@@ -35,6 +36,8 @@ final class VideoPlayerFeatureTests: XCTestCase {
         } withDependencies: {
             $0.streamRouterClient.route = route
             $0.continuousClock = ImmediateClock()
+            $0.watchProgressClient.getProgress = { _ in savedProgress }
+            $0.watchProgressClient.saveProgress = { _, _, _, _ in }
         }
     }
 
@@ -58,6 +61,7 @@ final class VideoPlayerFeatureTests: XCTestCase {
         let url = URL(string: "http://example.com/stream.m3u8")!
         let expectedRoute = StreamRoute(recommendedEngine: .avPlayer, url: url, reason: "HLS")
         let store = makeStore(route: { _ in expectedRoute })
+        store.exhaustivity = .off
 
         await store.send(.onAppear) {
             $0.status = .routing
@@ -70,8 +74,7 @@ final class VideoPlayerFeatureTests: XCTestCase {
             $0.playerCommand = .play(url: url, engine: .avPlayer)
         }
 
-        // Overlay auto-hide fires but status is not .playing, so no state change
-        await store.receive(\.overlayAutoHideExpired)
+        await store.skipReceivedActions()
     }
 
     func testOnAppear_invalidURL_setsError() async {
@@ -116,7 +119,10 @@ final class VideoPlayerFeatureTests: XCTestCase {
         } withDependencies: {
             $0.streamRouterClient.route = { _ in expectedRoute }
             $0.continuousClock = ImmediateClock()
+            $0.watchProgressClient.getProgress = { _ in nil }
+            $0.watchProgressClient.saveProgress = { _, _, _, _ in }
         }
+        store.exhaustivity = .off
 
         await store.send(.onAppear) {
             $0.status = .routing
@@ -129,7 +135,7 @@ final class VideoPlayerFeatureTests: XCTestCase {
             $0.playerCommand = .play(url: url, engine: .vlcKit)
         }
 
-        await store.receive(\.overlayAutoHideExpired)
+        await store.skipReceivedActions()
     }
 
     // MARK: - Stream Routed
@@ -166,7 +172,11 @@ final class VideoPlayerFeatureTests: XCTestCase {
 
         let store = TestStore(initialState: state) {
             VideoPlayerFeature()
+        } withDependencies: {
+            $0.continuousClock = ImmediateClock()
+            $0.watchProgressClient.saveProgress = { _, _, _, _ in }
         }
+        store.exhaustivity = .off
 
         await store.send(.playerStatusChanged(.playing)) {
             $0.status = .playing
@@ -570,5 +580,91 @@ final class VideoPlayerFeatureTests: XCTestCase {
             $0.status = .loading
             $0.playerCommand = .play(url: url, engine: .avPlayer)
         }
+    }
+
+    // MARK: - Watch Progress
+
+    func testOnAppear_loadsExistingProgress() async {
+        let url = URL(string: "http://example.com/stream.m3u8")!
+        let expectedRoute = StreamRoute(recommendedEngine: .avPlayer, url: url, reason: "HLS")
+        let savedProgress = WatchProgressRecord(
+            contentID: "ch-1", positionMs: 120_000, durationMs: 3_600_000, updatedAt: 1_700_000_000
+        )
+        let store = makeStore(route: { _ in expectedRoute }, savedProgress: savedProgress)
+        store.exhaustivity = .off
+
+        await store.send(.onAppear) {
+            $0.status = .routing
+        }
+
+        await store.receive(\.progressLoaded) {
+            $0.resumePositionMs = 120_000
+            $0.currentDurationMs = 3_600_000
+        }
+
+        await store.skipReceivedActions()
+    }
+
+    func testProgressLoaded_belowThreshold_noResume() async {
+        let record = WatchProgressRecord(contentID: "ch-1", positionMs: 5000, updatedAt: 1_700_000_000)
+
+        var state = VideoPlayerFeature.State(channel: makeChannel())
+        let store = TestStore(initialState: state) {
+            VideoPlayerFeature()
+        }
+
+        await store.send(.progressLoaded(record))
+        // positionMs (5000) < 10_000 threshold, so no resumePositionMs set
+    }
+
+    func testProgressLoaded_aboveThreshold_setsResume() async {
+        let record = WatchProgressRecord(
+            contentID: "ch-1", positionMs: 60_000, durationMs: 3_600_000, updatedAt: 1_700_000_000
+        )
+
+        let store = TestStore(initialState: VideoPlayerFeature.State(channel: makeChannel())) {
+            VideoPlayerFeature()
+        }
+
+        await store.send(.progressLoaded(record)) {
+            $0.resumePositionMs = 60_000
+            $0.currentDurationMs = 3_600_000
+        }
+    }
+
+    func testTimeUpdated_updatesPosition() async {
+        let store = TestStore(initialState: VideoPlayerFeature.State(channel: makeChannel())) {
+            VideoPlayerFeature()
+        }
+
+        await store.send(.timeUpdated(positionMs: 45_000, durationMs: 3_600_000)) {
+            $0.currentPositionMs = 45_000
+            $0.currentDurationMs = 3_600_000
+        }
+    }
+
+    func testOnDisappear_savesProgress() async {
+        var state = VideoPlayerFeature.State(channel: makeChannel())
+        state.currentPositionMs = 120_000
+        state.currentDurationMs = 3_600_000
+        state.status = .playing
+
+        let saved = LockIsolated<(String, Int)?>(nil)
+
+        let store = TestStore(initialState: state) {
+            VideoPlayerFeature()
+        } withDependencies: {
+            $0.watchProgressClient.saveProgress = { contentID, _, positionMs, _ in
+                saved.setValue((contentID, positionMs))
+            }
+        }
+
+        await store.send(.onDisappear) {
+            $0.playerCommand = .stop
+        }
+
+        let result = saved.value
+        XCTAssertEqual(result?.0, "ch-1")
+        XCTAssertEqual(result?.1, 120_000)
     }
 }

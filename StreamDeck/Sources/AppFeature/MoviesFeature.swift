@@ -17,6 +17,8 @@ public struct MoviesFeature {
         public var searchQuery: String = ""
         public var searchResults: [VodItemRecord]?
 
+        public var progressMap: [String: Double] = [:]
+
         public var isLoading: Bool = false
         public var errorMessage: String?
 
@@ -37,6 +39,7 @@ public struct MoviesFeature {
         case searchQueryChanged(String)
         case searchResultsLoaded(Result<[VodItemRecord], Error>)
         case movieTapped(VodItemRecord)
+        case progressMapLoaded([String: WatchProgressRecord])
         case retryTapped
         case videoPlayer(PresentationAction<VideoPlayerFeature.Action>)
         case delegate(Delegate)
@@ -48,6 +51,7 @@ public struct MoviesFeature {
     }
 
     @Dependency(\.vodListClient) var vodListClient
+    @Dependency(\.watchProgressClient) var watchProgressClient
 
     public init() {}
 
@@ -98,7 +102,12 @@ public struct MoviesFeature {
                 state.movies = movies
                 state.displayedMovies = movies
                 state.errorMessage = nil
-                return .none
+                let ids = movies.map(\.id)
+                let progressClient = watchProgressClient
+                return .run { send in
+                    let batch = try await progressClient.getProgressBatch(ids)
+                    await send(.progressMapLoaded(batch))
+                }
 
             case let .moviesLoaded(.failure(error)):
                 state.isLoading = false
@@ -163,6 +172,16 @@ public struct MoviesFeature {
             case .searchResultsLoaded(.failure):
                 state.searchResults = []
                 state.displayedMovies = []
+                return .none
+
+            case let .progressMapLoaded(batch):
+                var map: [String: Double] = [:]
+                for (id, record) in batch {
+                    if let duration = record.durationMs, duration > 0 {
+                        map[id] = Double(record.positionMs) / Double(duration)
+                    }
+                }
+                state.progressMap = map
                 return .none
 
             case let .movieTapped(movie):
@@ -287,7 +306,8 @@ public struct MoviesView: View {
                         } label: {
                             VodPosterTileView(
                                 item: movie,
-                                isFocused: focusedMovieID == movie.id
+                                isFocused: focusedMovieID == movie.id,
+                                progress: store.progressMap[movie.id]
                             )
                         }
                         .buttonStyle(.plain)

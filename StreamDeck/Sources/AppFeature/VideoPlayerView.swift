@@ -38,11 +38,15 @@ public struct VideoPlayerView: View {
                 #if os(tvOS) || os(iOS)
                 AVPlayerWrapperView(
                     url: url,
+                    initialSeekMs: store.resumePositionMs,
                     onStatusChange: { status in
                         store.send(.playerStatusChanged(status))
                     },
                     onError: { error in
                         store.send(.playerEncounteredError(error))
+                    },
+                    onTimeUpdate: { positionMs, durationMs in
+                        store.send(.timeUpdated(positionMs: positionMs, durationMs: durationMs))
                     }
                 )
                 .ignoresSafeArea()

@@ -51,6 +51,7 @@ final class MoviesFeatureTests: XCTestCase {
             $0.vodListClient.fetchPlaylists = { [playlist] }
             $0.vodListClient.fetchMovies = { _ in movies }
             $0.vodListClient.fetchGenres = { _, _ in ["Action", "Sci-Fi"] }
+            $0.watchProgressClient.getProgressBatch = { _ in [:] }
         }
 
         await store.send(.onAppear) {
@@ -68,6 +69,7 @@ final class MoviesFeatureTests: XCTestCase {
         await store.receive(\.genresLoaded.success) {
             $0.genres = ["All", "Action", "Sci-Fi"]
         }
+        await store.receive(\.progressMapLoaded)
     }
 
     func testOnAppear_noPlaylists_showsEmpty() async {
@@ -109,6 +111,7 @@ final class MoviesFeatureTests: XCTestCase {
         } withDependencies: {
             $0.vodListClient.fetchMovies = { _ in [] }
             $0.vodListClient.fetchGenres = { _, _ in [] }
+            $0.watchProgressClient.getProgressBatch = { _ in [:] }
         }
 
         await store.send(.playlistSelected("pl-2")) {
@@ -124,6 +127,7 @@ final class MoviesFeatureTests: XCTestCase {
         await store.receive(\.genresLoaded.success) {
             $0.genres = ["All"]
         }
+        await store.receive(\.progressMapLoaded)
     }
 
     // MARK: - Genre Filter
@@ -243,6 +247,7 @@ final class MoviesFeatureTests: XCTestCase {
             MoviesFeature()
         } withDependencies: {
             $0.vodListClient.fetchMovies = { _ in [] }
+            $0.watchProgressClient.getProgressBatch = { _ in [:] }
         }
 
         await store.send(.retryTapped) {
@@ -253,6 +258,30 @@ final class MoviesFeatureTests: XCTestCase {
             $0.isLoading = false
             $0.movies = []
             $0.displayedMovies = []
+        }
+        await store.receive(\.progressMapLoaded)
+    }
+
+    // MARK: - Progress Map
+
+    func testProgressMapLoaded_computesFractions() async {
+        var state = MoviesFeature.State()
+        state.movies = [makeMovie(id: "m1"), makeMovie(id: "m2")]
+
+        let store = TestStore(initialState: state) {
+            MoviesFeature()
+        }
+
+        let batch: [String: WatchProgressRecord] = [
+            "m1": WatchProgressRecord(contentID: "m1", positionMs: 1_800_000, durationMs: 3_600_000, updatedAt: 1_700_000_000),
+            "m2": WatchProgressRecord(contentID: "m2", positionMs: 600_000, durationMs: 7_200_000, updatedAt: 1_700_000_000),
+        ]
+
+        await store.send(.progressMapLoaded(batch)) {
+            $0.progressMap = [
+                "m1": 0.5,
+                "m2": Double(600_000) / Double(7_200_000),
+            ]
         }
     }
 }

@@ -21,17 +21,25 @@ private let subtitleFontSize: CGFloat = 10
 public struct VodPosterTileView: View {
     let item: VodItemRecord
     let isFocused: Bool
+    let progress: Double?
 
-    public init(item: VodItemRecord, isFocused: Bool = false) {
+    public init(item: VodItemRecord, isFocused: Bool = false, progress: Double? = nil) {
         self.item = item
         self.isFocused = isFocused
+        self.progress = progress
     }
 
     public var body: some View {
         VStack(spacing: 8) {
-            posterImage
-                .frame(width: posterWidth, height: posterHeight)
-                .clipShape(RoundedRectangle(cornerRadius: posterCornerRadius))
+            ZStack(alignment: .bottom) {
+                posterImage
+                    .frame(width: posterWidth, height: posterHeight)
+                    .clipShape(RoundedRectangle(cornerRadius: posterCornerRadius))
+
+                if let progress, progress > 0 {
+                    progressBar(fraction: progress)
+                }
+            }
 
             Text(item.title)
                 .font(.system(size: titleFontSize))
@@ -66,6 +74,21 @@ public struct VodPosterTileView: View {
         .foregroundStyle(.secondary)
         .lineLimit(1)
         .frame(width: posterWidth)
+    }
+
+    private func progressBar(fraction: Double) -> some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Rectangle()
+                    .fill(Color.black.opacity(0.5))
+                Rectangle()
+                    .fill(Color.accentColor)
+                    .frame(width: geo.size.width * min(max(fraction, 0), 1))
+            }
+        }
+        .frame(width: posterWidth, height: 4)
+        .clipShape(RoundedRectangle(cornerRadius: 2))
+        .padding(.bottom, 2)
     }
 
     @ViewBuilder
