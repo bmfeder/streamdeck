@@ -30,7 +30,8 @@ extension PlaylistImportClient: DependencyKey {
         let dbManager = try! DatabaseManager(path: Self.databasePath())
         let service = PlaylistImportService(
             playlistRepo: PlaylistRepository(dbManager: dbManager),
-            channelRepo: ChannelRepository(dbManager: dbManager)
+            channelRepo: ChannelRepository(dbManager: dbManager),
+            vodRepo: VodRepository(dbManager: dbManager)
         )
         return PlaylistImportClient(
             importM3U: { url, name, epgURL in

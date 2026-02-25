@@ -1,4 +1,36 @@
+import Database
 import Foundation
+
+// MARK: - Playable Item
+
+/// A unified representation of any playable content (channel or VOD item).
+public struct PlayableItem: Equatable, Sendable {
+    public let name: String
+    public let streamURL: String
+    public let groupName: String?
+    public let posterURL: String?
+
+    public init(name: String, streamURL: String, groupName: String? = nil, posterURL: String? = nil) {
+        self.name = name
+        self.streamURL = streamURL
+        self.groupName = groupName
+        self.posterURL = posterURL
+    }
+
+    public init(channel: ChannelRecord) {
+        self.name = channel.name
+        self.streamURL = channel.streamURL
+        self.groupName = channel.groupName
+        self.posterURL = channel.logoURL
+    }
+
+    public init(vodItem: VodItemRecord) {
+        self.name = vodItem.title
+        self.streamURL = vodItem.streamURL ?? ""
+        self.groupName = vodItem.genre
+        self.posterURL = vodItem.posterURL
+    }
+}
 
 // MARK: - Player Engine
 

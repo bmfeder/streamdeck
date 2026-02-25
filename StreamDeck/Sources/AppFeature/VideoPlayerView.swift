@@ -88,10 +88,10 @@ public struct VideoPlayerView: View {
 
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(store.channel.name)
+                    Text(store.item.name)
                         .font(.headline)
                         .foregroundStyle(.white)
-                    if let group = store.channel.groupName {
+                    if let group = store.item.groupName {
                         Text(group)
                             .font(.subheadline)
                             .foregroundStyle(.white.opacity(0.7))

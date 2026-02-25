@@ -9,17 +9,20 @@ public struct PlaylistImportService: Sendable {
 
     private let playlistRepo: PlaylistRepository
     private let channelRepo: ChannelRepository
+    private let vodRepo: VodRepository?
     private let httpClient: HTTPClient
     private let uuidGenerator: @Sendable () -> String
 
     public init(
         playlistRepo: PlaylistRepository,
         channelRepo: ChannelRepository,
+        vodRepo: VodRepository? = nil,
         httpClient: HTTPClient = URLSessionHTTPClient(),
         uuidGenerator: @escaping @Sendable () -> String = { UUID().uuidString }
     ) {
         self.playlistRepo = playlistRepo
         self.channelRepo = channelRepo
+        self.vodRepo = vodRepo
         self.httpClient = httpClient
         self.uuidGenerator = uuidGenerator
     }
@@ -82,11 +85,24 @@ public struct PlaylistImportService: Sendable {
         )
         try playlistRepo.create(playlist)
 
-        // Convert and import channels
-        let channels = parseResult.channels.map { parsed in
+        // Split live channels from VOD items by duration
+        let liveEntries = parseResult.channels.filter { $0.duration <= 0 }
+        let vodEntries = parseResult.channels.filter { $0.duration > 0 }
+
+        // Convert and import live channels
+        let channels = liveEntries.map { parsed in
             ChannelConverter.fromParsedChannel(parsed, playlistID: playlistID, id: uuidGenerator())
         }
         let importResult = try channelRepo.importChannels(playlistID: playlistID, channels: channels, now: now)
+
+        // Convert and import VOD items
+        var vodImportResult: VodImportResult?
+        if !vodEntries.isEmpty, let vodRepo {
+            let vodItems = vodEntries.map { parsed in
+                VodConverter.fromParsedChannel(parsed, playlistID: playlistID, id: uuidGenerator())
+            }
+            vodImportResult = try vodRepo.importVodItems(playlistID: playlistID, items: vodItems)
+        }
 
         // Collect parse error summaries (truncated for user display)
         let parseErrors = parseResult.errors.prefix(10).map { error in
@@ -96,6 +112,7 @@ public struct PlaylistImportService: Sendable {
         return PlaylistImportResult(
             playlist: playlist,
             importResult: importResult,
+            vodImportResult: vodImportResult,
             parseErrors: Array(parseErrors)
         )
     }
@@ -182,9 +199,59 @@ public struct PlaylistImportService: Sendable {
         }
         let importResult = try channelRepo.importChannels(playlistID: playlistID, channels: channels, now: now)
 
+        // Fetch and import VOD content (non-fatal if it fails)
+        var vodImportResult: VodImportResult?
+        if let vodRepo {
+            do {
+                var vodItems: [VodItemRecord] = []
+
+                // Fetch VOD movies
+                let vodCategories = try await client.getVODCategories()
+                var vodCategoryMap: [String: String] = [:]
+                for cat in vodCategories {
+                    vodCategoryMap[cat.categoryId.value] = cat.categoryName
+                }
+                let vodStreams = try await client.getVODStreams()
+                for stream in vodStreams {
+                    let catName = vodCategoryMap[stream.categoryId.value]
+                    let ext = stream.containerExtension ?? "mp4"
+                    let url = client.vodStreamURL(
+                        streamId: stream.streamId.value,
+                        containerExtension: ext
+                    ).absoluteString
+                    vodItems.append(VodConverter.fromXtreamVODStream(
+                        stream, playlistID: playlistID, categoryName: catName,
+                        streamURL: url, id: uuidGenerator()
+                    ))
+                }
+
+                // Fetch series (parent records only — episodes fetched on demand)
+                let seriesCategories = try await client.getSeriesCategories()
+                var seriesCategoryMap: [String: String] = [:]
+                for cat in seriesCategories {
+                    seriesCategoryMap[cat.categoryId.value] = cat.categoryName
+                }
+                let seriesList = try await client.getSeries()
+                for series in seriesList {
+                    let catName = seriesCategoryMap[series.categoryId.value]
+                    vodItems.append(VodConverter.fromXtreamSeries(
+                        series, playlistID: playlistID, categoryName: catName,
+                        id: uuidGenerator()
+                    ))
+                }
+
+                if !vodItems.isEmpty {
+                    vodImportResult = try vodRepo.importVodItems(playlistID: playlistID, items: vodItems)
+                }
+            } catch {
+                // VOD import failures should not block the overall import
+            }
+        }
+
         return PlaylistImportResult(
             playlist: playlist,
-            importResult: importResult
+            importResult: importResult,
+            vodImportResult: vodImportResult
         )
     }
 }

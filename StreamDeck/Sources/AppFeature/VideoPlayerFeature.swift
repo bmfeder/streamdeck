@@ -7,7 +7,7 @@ public struct VideoPlayerFeature {
 
     @ObservableState
     public struct State: Equatable, Sendable {
-        public var channel: ChannelRecord
+        public var item: PlayableItem
         public var status: PlaybackStatus = .idle
         public var activeEngine: PlayerEngine?
         public var streamRoute: StreamRoute?
@@ -19,7 +19,15 @@ public struct VideoPlayerFeature {
         public static let maxRetriesPerEngine: Int = 3
 
         public init(channel: ChannelRecord) {
-            self.channel = channel
+            self.item = PlayableItem(channel: channel)
+        }
+
+        public init(vodItem: VodItemRecord) {
+            self.item = PlayableItem(vodItem: vodItem)
+        }
+
+        public init(item: PlayableItem) {
+            self.item = item
         }
     }
 
@@ -59,7 +67,7 @@ public struct VideoPlayerFeature {
             switch action {
             case .onAppear:
                 guard state.status == .idle else { return .none }
-                guard let url = URL(string: state.channel.streamURL),
+                guard let url = URL(string: state.item.streamURL),
                       let scheme = url.scheme?.lowercased(),
                       scheme == "http" || scheme == "https" || scheme == "rtsp" || scheme == "rtmp" || scheme == "mms" else {
                     state.status = .error(.streamUnavailable)

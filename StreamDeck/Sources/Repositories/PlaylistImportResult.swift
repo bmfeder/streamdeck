@@ -16,6 +16,8 @@ public struct PlaylistImportResult: Equatable, Sendable {
     public let playlist: PlaylistRecord
     /// Channel import statistics (added, updated, softDeleted, unchanged).
     public let importResult: ImportResult
+    /// VOD import statistics (nil if no VOD content found).
+    public let vodImportResult: VodImportResult?
     /// Non-fatal parse error summaries (M3U only; empty for Xtream).
     public let parseErrors: [String]
 
@@ -27,10 +29,12 @@ public struct PlaylistImportResult: Equatable, Sendable {
     public init(
         playlist: PlaylistRecord,
         importResult: ImportResult,
+        vodImportResult: VodImportResult? = nil,
         parseErrors: [String] = []
     ) {
         self.playlist = playlist
         self.importResult = importResult
+        self.vodImportResult = vodImportResult
         self.parseErrors = parseErrors
     }
 }
