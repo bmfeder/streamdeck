@@ -5,11 +5,16 @@ import SwiftUI
 public struct SettingsFeature {
     @ObservableState
     public struct State: Equatable, Sendable {
+        @Presents public var addPlaylist: AddPlaylistFeature.State?
+
         public init() {}
     }
 
     public enum Action: Sendable {
         case onAppear
+        case addM3UTapped
+        case addXtreamTapped
+        case addPlaylist(PresentationAction<AddPlaylistFeature.Action>)
     }
 
     public init() {}
@@ -19,13 +24,26 @@ public struct SettingsFeature {
             switch action {
             case .onAppear:
                 return .none
+            case .addM3UTapped:
+                state.addPlaylist = AddPlaylistFeature.State(sourceType: .m3u)
+                return .none
+            case .addXtreamTapped:
+                state.addPlaylist = AddPlaylistFeature.State(sourceType: .xtream)
+                return .none
+            case .addPlaylist(.presented(.delegate(.importCompleted))):
+                return .none
+            case .addPlaylist:
+                return .none
             }
+        }
+        .ifLet(\.$addPlaylist, action: \.addPlaylist) {
+            AddPlaylistFeature()
         }
     }
 }
 
 public struct SettingsView: View {
-    let store: StoreOf<SettingsFeature>
+    @Bindable var store: StoreOf<SettingsFeature>
 
     public init(store: StoreOf<SettingsFeature>) {
         self.store = store
@@ -35,10 +53,16 @@ public struct SettingsView: View {
         NavigationStack {
             List {
                 Section("Sources") {
-                    Label("Add Playlist", systemImage: "plus.circle")
-                        .foregroundStyle(.secondary)
-                    Label("Add Xtream Login", systemImage: "plus.circle")
-                        .foregroundStyle(.secondary)
+                    Button {
+                        store.send(.addM3UTapped)
+                    } label: {
+                        Label("Add Playlist", systemImage: "plus.circle")
+                    }
+                    Button {
+                        store.send(.addXtreamTapped)
+                    } label: {
+                        Label("Add Xtream Login", systemImage: "plus.circle")
+                    }
                 }
                 Section("About") {
                     LabeledContent("Version", value: "0.1.0")
@@ -47,6 +71,9 @@ public struct SettingsView: View {
             }
             .navigationTitle(Tab.settings.title)
             .onAppear { store.send(.onAppear) }
+            .sheet(item: $store.scope(state: \.addPlaylist, action: \.addPlaylist)) { addStore in
+                AddPlaylistView(store: addStore)
+            }
         }
     }
 }

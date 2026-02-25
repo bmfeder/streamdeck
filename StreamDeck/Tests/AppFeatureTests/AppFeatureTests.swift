@@ -68,6 +68,38 @@ final class AppFeatureTests: XCTestCase {
         await store.send(.settings(.onAppear))
     }
 
+    // MARK: - Settings → Add Playlist
+
+    func testSettingsAddM3UTapped_presentsAddPlaylist() async {
+        let store = TestStore(initialState: AppFeature.State()) {
+            AppFeature()
+        }
+        await store.send(.settings(.addM3UTapped)) {
+            $0.settings.addPlaylist = AddPlaylistFeature.State(sourceType: .m3u)
+        }
+    }
+
+    func testSettingsAddXtreamTapped_presentsAddPlaylist() async {
+        let store = TestStore(initialState: AppFeature.State()) {
+            AppFeature()
+        }
+        await store.send(.settings(.addXtreamTapped)) {
+            $0.settings.addPlaylist = AddPlaylistFeature.State(sourceType: .xtream)
+        }
+    }
+
+    func testSettingsAddPlaylistDismiss_nilsState() async {
+        var initialState = AppFeature.State()
+        initialState.settings.addPlaylist = AddPlaylistFeature.State(sourceType: .m3u)
+
+        let store = TestStore(initialState: initialState) {
+            AppFeature()
+        }
+        await store.send(.settings(.addPlaylist(.dismiss))) {
+            $0.settings.addPlaylist = nil
+        }
+    }
+
     // MARK: - Tab Enum
 
     func testTabCaseIterable_hasSeven() {
