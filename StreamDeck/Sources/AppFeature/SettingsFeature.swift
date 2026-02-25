@@ -15,6 +15,7 @@ public struct SettingsFeature {
         case onAppear
         case addM3UTapped
         case addXtreamTapped
+        case addEmbyTapped
         case addPlaylist(PresentationAction<AddPlaylistFeature.Action>)
     }
 
@@ -32,6 +33,9 @@ public struct SettingsFeature {
                 return .none
             case .addXtreamTapped:
                 state.addPlaylist = AddPlaylistFeature.State(sourceType: .xtream)
+                return .none
+            case .addEmbyTapped:
+                state.addPlaylist = AddPlaylistFeature.State(sourceType: .emby)
                 return .none
             case let .addPlaylist(.presented(.delegate(.importCompleted(playlistID: playlistID)))):
                 let client = epgClient
@@ -68,6 +72,11 @@ public struct SettingsView: View {
                         store.send(.addXtreamTapped)
                     } label: {
                         Label("Add Xtream Login", systemImage: "plus.circle")
+                    }
+                    Button {
+                        store.send(.addEmbyTapped)
+                    } label: {
+                        Label("Add Emby Server", systemImage: "server.rack")
                     }
                 }
                 Section("About") {

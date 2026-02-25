@@ -21,6 +21,14 @@ public struct PlaylistImportClient: Sendable {
         _ password: String,
         _ name: String
     ) async throws -> PlaylistImportResult
+
+    /// Import an Emby server.
+    public var importEmby: @Sendable (
+        _ serverURL: URL,
+        _ username: String,
+        _ password: String,
+        _ name: String
+    ) async throws -> PlaylistImportResult
 }
 
 // MARK: - Dependency Registration
@@ -44,6 +52,14 @@ extension PlaylistImportClient: DependencyKey {
                     password: password,
                     name: name
                 )
+            },
+            importEmby: { serverURL, username, password, name in
+                try await service.importEmby(
+                    serverURL: serverURL,
+                    username: username,
+                    password: password,
+                    name: name
+                )
             }
         )
     }
@@ -51,7 +67,8 @@ extension PlaylistImportClient: DependencyKey {
     public static var testValue: PlaylistImportClient {
         PlaylistImportClient(
             importM3U: unimplemented("PlaylistImportClient.importM3U"),
-            importXtream: unimplemented("PlaylistImportClient.importXtream")
+            importXtream: unimplemented("PlaylistImportClient.importXtream"),
+            importEmby: unimplemented("PlaylistImportClient.importEmby")
         )
     }
 

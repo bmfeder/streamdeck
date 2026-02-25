@@ -276,4 +276,105 @@ final class AddPlaylistFeatureTests: XCTestCase {
             $0.errorMessage = nil
         }
     }
+
+    // MARK: - Emby
+
+    func testInitialState_embyWhenSpecified() {
+        let state = AddPlaylistFeature.State(sourceType: .emby)
+        XCTAssertEqual(state.sourceType, .emby)
+    }
+
+    func testIsFormValid_emby_allFieldsFilled_true() {
+        var state = AddPlaylistFeature.State(sourceType: .emby)
+        state.embyServerURL = "http://emby.local:8096"
+        state.embyUsername = "user"
+        state.embyPassword = "pass"
+        XCTAssertTrue(state.isFormValid)
+    }
+
+    func testIsFormValid_emby_missingServerURL_false() {
+        var state = AddPlaylistFeature.State(sourceType: .emby)
+        state.embyUsername = "user"
+        state.embyPassword = "pass"
+        XCTAssertFalse(state.isFormValid)
+    }
+
+    func testIsFormValid_emby_missingUsername_false() {
+        var state = AddPlaylistFeature.State(sourceType: .emby)
+        state.embyServerURL = "http://emby.local:8096"
+        state.embyPassword = "pass"
+        XCTAssertFalse(state.isFormValid)
+    }
+
+    func testIsFormValid_emby_missingPassword_false() {
+        var state = AddPlaylistFeature.State(sourceType: .emby)
+        state.embyServerURL = "http://emby.local:8096"
+        state.embyUsername = "user"
+        XCTAssertFalse(state.isFormValid)
+    }
+
+    func testEmbyServerURLChanged_autoFillsName() async {
+        let store = TestStore(
+            initialState: AddPlaylistFeature.State(sourceType: .emby)
+        ) {
+            AddPlaylistFeature()
+        }
+        await store.send(.embyServerURLChanged("http://emby.local:8096")) {
+            $0.embyServerURL = "http://emby.local:8096"
+            $0.embyName = "emby.local"
+        }
+    }
+
+    func testImportButtonTapped_emby_setsLoadingAndImports() async {
+        let importResult = makePlaylistImportResult(name: "My Emby")
+
+        let store = TestStore(
+            initialState: {
+                var state = AddPlaylistFeature.State(sourceType: .emby)
+                state.embyServerURL = "http://emby.local:8096"
+                state.embyUsername = "user"
+                state.embyPassword = "pass"
+                state.embyName = "My Emby"
+                return state
+            }()
+        ) {
+            AddPlaylistFeature()
+        } withDependencies: {
+            $0.playlistImportClient.importEmby = { _, _, _, _ in importResult }
+        }
+
+        await store.send(.importButtonTapped) {
+            $0.isImporting = true
+            $0.errorMessage = nil
+            $0.importResult = nil
+        }
+
+        await store.receive(\.importResponse.success) {
+            $0.isImporting = false
+            $0.importResult = AddPlaylistFeature.ImportResultState(
+                playlistName: "My Emby",
+                channelsAdded: 10,
+                parseWarnings: 0
+            )
+        }
+
+        await store.receive(\.delegate.importCompleted)
+    }
+
+    func testImportResponse_embyAuthFailure() async {
+        let store = TestStore(
+            initialState: {
+                var state = AddPlaylistFeature.State(sourceType: .emby)
+                state.isImporting = true
+                return state
+            }()
+        ) {
+            AddPlaylistFeature()
+        }
+
+        await store.send(.importResponse(.failure(PlaylistImportError.authenticationFailed))) {
+            $0.isImporting = false
+            $0.errorMessage = "Authentication failed. Check your username and password."
+        }
+    }
 }

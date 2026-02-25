@@ -15,6 +15,7 @@ let package = Package(
         .library(name: "Database", targets: ["Database"]),
         .library(name: "AppFeature", targets: ["AppFeature"]),
         .library(name: "Repositories", targets: ["Repositories"]),
+        .library(name: "EmbyClient", targets: ["EmbyClient"]),
     ],
     dependencies: [
         .package(
@@ -84,9 +85,19 @@ let package = Package(
             path: "Tests/AppFeatureTests"
         ),
         .target(
+            name: "EmbyClient",
+            dependencies: ["XtreamClient"],
+            path: "Sources/EmbyClient"
+        ),
+        .target(
             name: "Repositories",
-            dependencies: ["Database", "M3UParser", "XtreamClient", "XMLTVParser"],
+            dependencies: ["Database", "M3UParser", "XtreamClient", "XMLTVParser", "EmbyClient"],
             path: "Sources/Repositories"
+        ),
+        .testTarget(
+            name: "EmbyClientTests",
+            dependencies: ["EmbyClient"],
+            path: "Tests/EmbyClientTests"
         ),
         .testTarget(
             name: "RepositoryTests",

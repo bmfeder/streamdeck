@@ -9,6 +9,7 @@ public struct AddPlaylistFeature {
     public enum SourceType: String, CaseIterable, Equatable, Sendable {
         case m3u = "M3U Playlist"
         case xtream = "Xtream Codes"
+        case emby = "Emby Server"
     }
 
     @ObservableState
@@ -21,6 +22,10 @@ public struct AddPlaylistFeature {
         public var xtreamUsername: String = ""
         public var xtreamPassword: String = ""
         public var xtreamName: String = ""
+        public var embyServerURL: String = ""
+        public var embyUsername: String = ""
+        public var embyPassword: String = ""
+        public var embyName: String = ""
         public var isImporting: Bool = false
         public var importResult: ImportResultState? = nil
         public var errorMessage: String? = nil
@@ -37,6 +42,12 @@ public struct AddPlaylistFeature {
                 return (parsed.scheme == "http" || parsed.scheme == "https")
                     && !xtreamUsername.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     && !xtreamPassword.isEmpty
+            case .emby:
+                let server = embyServerURL.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !server.isEmpty, let parsed = URL(string: server) else { return false }
+                return (parsed.scheme == "http" || parsed.scheme == "https")
+                    && !embyUsername.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    && !embyPassword.isEmpty
             }
         }
 
@@ -61,6 +72,10 @@ public struct AddPlaylistFeature {
         case xtreamUsernameChanged(String)
         case xtreamPasswordChanged(String)
         case xtreamNameChanged(String)
+        case embyServerURLChanged(String)
+        case embyUsernameChanged(String)
+        case embyPasswordChanged(String)
+        case embyNameChanged(String)
         case importButtonTapped
         case importResponse(Result<PlaylistImportResult, Error>)
         case dismissTapped
@@ -123,6 +138,26 @@ public struct AddPlaylistFeature {
                 state.xtreamName = name
                 return .none
 
+            case let .embyServerURLChanged(url):
+                state.embyServerURL = url
+                if state.embyName.isEmpty,
+                   let parsed = URL(string: url.trimmingCharacters(in: .whitespacesAndNewlines)) {
+                    state.embyName = parsed.host() ?? ""
+                }
+                return .none
+
+            case let .embyUsernameChanged(username):
+                state.embyUsername = username
+                return .none
+
+            case let .embyPasswordChanged(password):
+                state.embyPassword = password
+                return .none
+
+            case let .embyNameChanged(name):
+                state.embyName = name
+                return .none
+
             case .importButtonTapped:
                 guard state.isFormValid, !state.isImporting else { return .none }
                 state.isImporting = true
@@ -153,6 +188,19 @@ public struct AddPlaylistFeature {
 
                     return .run { send in
                         let result = try await client.importXtream(serverURL, username, password, name)
+                        await send(.importResponse(.success(result)))
+                    } catch: { error, send in
+                        await send(.importResponse(.failure(error)))
+                    }
+
+                case .emby:
+                    let serverURL = URL(string: state.embyServerURL.trimmingCharacters(in: .whitespacesAndNewlines))!
+                    let username = state.embyUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let password = state.embyPassword
+                    let name = state.embyName.isEmpty ? (serverURL.host() ?? "Emby") : state.embyName
+
+                    return .run { send in
+                        let result = try await client.importEmby(serverURL, username, password, name)
                         await send(.importResponse(.success(result)))
                     } catch: { error, send in
                         await send(.importResponse(.failure(error)))
@@ -233,6 +281,8 @@ public struct AddPlaylistView: View {
                     m3uFields
                 case .xtream:
                     xtreamFields
+                case .emby:
+                    embyFields
                 }
 
                 Section {
@@ -299,6 +349,19 @@ public struct AddPlaylistView: View {
                 .autocorrectionDisabled()
             SecureField("Password", text: $store.xtreamPassword.sending(\.xtreamPasswordChanged))
             TextField("Name (optional)", text: $store.xtreamName.sending(\.xtreamNameChanged))
+        }
+    }
+
+    private var embyFields: some View {
+        Section("Emby Server") {
+            TextField("Server URL", text: $store.embyServerURL.sending(\.embyServerURLChanged))
+                .textContentType(.URL)
+                .autocorrectionDisabled()
+            TextField("Username", text: $store.embyUsername.sending(\.embyUsernameChanged))
+                .textContentType(.username)
+                .autocorrectionDisabled()
+            SecureField("Password", text: $store.embyPassword.sending(\.embyPasswordChanged))
+            TextField("Name (optional)", text: $store.embyName.sending(\.embyNameChanged))
         }
     }
 }

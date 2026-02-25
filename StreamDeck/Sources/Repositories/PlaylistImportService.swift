@@ -1,5 +1,6 @@
 import Foundation
 import Database
+import EmbyClient
 import M3UParser
 import XtreamClient
 
@@ -251,6 +252,134 @@ public struct PlaylistImportService: Sendable {
         return PlaylistImportResult(
             playlist: playlist,
             importResult: importResult,
+            vodImportResult: vodImportResult
+        )
+    }
+
+    // MARK: - Emby Import
+
+    /// Authenticates with Emby server, fetches libraries and items,
+    /// stores access token in Keychain, and persists to database.
+    public func importEmby(
+        serverURL: URL,
+        username: String,
+        password: String,
+        name: String
+    ) async throws -> PlaylistImportResult {
+        let credentials = EmbyCredentials(serverURL: serverURL, username: username, password: password)
+        let client = EmbyClient(credentials: credentials, httpClient: httpClient)
+
+        // Authenticate
+        let authResponse: EmbyAuthResponse
+        do {
+            authResponse = try await client.authenticate()
+        } catch let error as EmbyError {
+            switch error {
+            case .authenticationFailed:
+                throw PlaylistImportError.authenticationFailed
+            default:
+                throw PlaylistImportError.networkError(String(describing: error))
+            }
+        } catch {
+            throw PlaylistImportError.authenticationFailed
+        }
+
+        let userId = authResponse.user.id
+        let accessToken = authResponse.accessToken
+
+        // Store credentials as JSON in Keychain (token for API calls, password for re-auth)
+        let playlistID = uuidGenerator()
+        let keychainKey = "emby-\(playlistID)"
+        let credentialJSON: [String: String] = [
+            "userId": userId,
+            "accessToken": accessToken,
+            "password": password,
+        ]
+        if let jsonData = try? JSONEncoder().encode(credentialJSON),
+           let jsonString = String(data: jsonData, encoding: .utf8) {
+            KeychainHelper.save(key: keychainKey, value: jsonString)
+        }
+
+        // Create playlist record
+        let now = Int(Date().timeIntervalSince1970)
+        let playlist = PlaylistRecord(
+            id: playlistID,
+            name: name,
+            type: "emby",
+            url: serverURL.absoluteString,
+            username: username,
+            passwordRef: keychainKey,
+            lastSync: now,
+            sortOrder: 0
+        )
+        try playlistRepo.create(playlist)
+
+        // Fetch libraries
+        let libraries: [EmbyLibrary]
+        do {
+            libraries = try await client.getLibraries(userId: userId, accessToken: accessToken)
+        } catch {
+            throw PlaylistImportError.networkError(error.localizedDescription)
+        }
+
+        // Fetch VOD items from movie and tvshows libraries
+        var vodItems: [VodItemRecord] = []
+        for library in libraries {
+            guard let collectionType = library.collectionType,
+                  collectionType == "movies" || collectionType == "tvshows" else { continue }
+
+            let itemType = collectionType == "movies" ? "Movie" : "Series"
+            var startIndex = 0
+
+            while true {
+                let response = try await client.getItems(
+                    userId: userId, accessToken: accessToken,
+                    parentId: library.id, includeItemTypes: itemType,
+                    startIndex: startIndex, limit: 100
+                )
+
+                for item in response.items {
+                    if collectionType == "movies" {
+                        vodItems.append(EmbyConverter.fromEmbyMovie(
+                            item, playlistID: playlistID,
+                            serverURL: serverURL, accessToken: accessToken
+                        ))
+                    } else {
+                        let seriesRecord = EmbyConverter.fromEmbySeries(
+                            item, playlistID: playlistID, serverURL: serverURL
+                        )
+                        vodItems.append(seriesRecord)
+
+                        // Fetch episodes for this series
+                        let episodesResponse = try await client.getItems(
+                            userId: userId, accessToken: accessToken,
+                            parentId: library.id, includeItemTypes: "Episode",
+                            startIndex: 0, limit: 1000
+                        )
+                        let seriesEpisodes = episodesResponse.items.filter { $0.seriesId == item.id }
+                        for ep in seriesEpisodes {
+                            vodItems.append(EmbyConverter.fromEmbyEpisode(
+                                ep, playlistID: playlistID, seriesID: seriesRecord.id,
+                                serverURL: serverURL, accessToken: accessToken
+                            ))
+                        }
+                    }
+                }
+
+                startIndex += response.items.count
+                if startIndex >= response.totalRecordCount { break }
+            }
+        }
+
+        // Import VOD items to DB
+        var vodImportResult: VodImportResult?
+        if !vodItems.isEmpty, let vodRepo {
+            vodImportResult = try vodRepo.importVodItems(playlistID: playlistID, items: vodItems)
+        }
+
+        return PlaylistImportResult(
+            playlist: playlist,
+            importResult: ImportResult(added: 0, updated: 0, softDeleted: 0, unchanged: 0),
             vodImportResult: vodImportResult
         )
     }

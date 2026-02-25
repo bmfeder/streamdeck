@@ -124,6 +124,15 @@ final class AppFeatureTests: XCTestCase {
         }
     }
 
+    func testSettingsAddEmbyTapped_presentsAddPlaylist() async {
+        let store = TestStore(initialState: AppFeature.State()) {
+            AppFeature()
+        }
+        await store.send(.settings(.addEmbyTapped)) {
+            $0.settings.addPlaylist = AddPlaylistFeature.State(sourceType: .emby)
+        }
+    }
+
     func testSettingsAddPlaylistDismiss_nilsState() async {
         var initialState = AppFeature.State()
         initialState.settings.addPlaylist = AddPlaylistFeature.State(sourceType: .m3u)
