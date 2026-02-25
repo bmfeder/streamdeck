@@ -54,11 +54,18 @@ final class AppFeatureTests: XCTestCase {
         await store.send(.home(.onAppear))
     }
 
-    func testLiveTVOnAppear_passesThrough() async {
+    func testLiveTVOnAppear_loadsPlaylists() async {
         let store = TestStore(initialState: AppFeature.State()) {
             AppFeature()
+        } withDependencies: {
+            $0.channelListClient.fetchPlaylists = { [] }
         }
-        await store.send(.liveTV(.onAppear))
+        await store.send(.liveTV(.onAppear)) {
+            $0.liveTV.isLoading = true
+        }
+        await store.receive(\.liveTV.playlistsLoaded.success) {
+            $0.liveTV.isLoading = false
+        }
     }
 
     func testSettingsOnAppear_passesThrough() async {
