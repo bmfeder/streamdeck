@@ -12,6 +12,7 @@ let package = Package(
         .library(name: "M3UParser", targets: ["M3UParser"]),
         .library(name: "XtreamClient", targets: ["XtreamClient"]),
         .library(name: "XMLTVParser", targets: ["XMLTVParser"]),
+        .library(name: "Database", targets: ["Database"]),
     ],
     dependencies: [
         .package(
@@ -40,6 +41,13 @@ let package = Package(
             name: "XMLTVParser",
             path: "Sources/XMLTVParser"
         ),
+        .target(
+            name: "Database",
+            dependencies: [
+                .product(name: "GRDB", package: "GRDB.swift"),
+            ],
+            path: "Sources/Database"
+        ),
         .testTarget(
             name: "M3UParserTests",
             dependencies: ["M3UParser"],
@@ -54,6 +62,11 @@ let package = Package(
             name: "XMLTVParserTests",
             dependencies: ["XMLTVParser"],
             path: "Tests/XMLTVParserTests"
+        ),
+        .testTarget(
+            name: "DatabaseTests",
+            dependencies: ["Database"],
+            path: "Tests/DatabaseTests"
         ),
     ]
 )
