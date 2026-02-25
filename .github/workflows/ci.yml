@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  swift-test:
+    name: Swift Package Tests
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Resolve dependencies
+        working-directory: StreamDeck
+        run: swift package resolve
+
+      - name: Run tests
+        working-directory: StreamDeck
+        run: swift test
+
+  xcode-build:
+    name: tvOS Build
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Build for tvOS
+        run: |
+          xcodebuild \
+            -project StreamDeck.xcodeproj \
+            -scheme StreamDeck \
+            -destination 'generic/platform=tvOS' \
+            build \
+            CODE_SIGNING_ALLOWED=NO \
+            -skipMacroValidation
