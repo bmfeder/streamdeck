@@ -13,6 +13,20 @@ let package = Package(
         .library(name: "XtreamClient", targets: ["XtreamClient"]),
         .library(name: "XMLTVParser", targets: ["XMLTVParser"]),
     ],
+    dependencies: [
+        .package(
+            url: "https://github.com/pointfreeco/swift-composable-architecture",
+            from: "1.23.1"
+        ),
+        .package(
+            url: "https://github.com/groue/GRDB.swift",
+            from: "7.10.0"
+        ),
+        .package(
+            url: "https://github.com/tylerjonesio/vlckit-spm",
+            from: "3.6.0"
+        ),
+    ],
     targets: [
         .target(
             name: "M3UParser",
