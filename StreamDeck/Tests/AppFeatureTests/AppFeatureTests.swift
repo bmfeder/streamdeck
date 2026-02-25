@@ -109,8 +109,8 @@ final class AppFeatureTests: XCTestCase {
 
     // MARK: - Tab Enum
 
-    func testTabCaseIterable_hasSeven() {
-        XCTAssertEqual(Tab.allCases.count, 7)
+    func testTabCaseIterable_hasEight() {
+        XCTAssertEqual(Tab.allCases.count, 8)
     }
 
     func testTabTitles_areNonEmpty() {

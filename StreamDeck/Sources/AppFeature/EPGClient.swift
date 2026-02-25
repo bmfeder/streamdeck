@@ -11,14 +11,22 @@ public struct EPGClient: Sendable {
 
     public var syncEPG: @Sendable (_ playlistID: String) async throws -> EpgImportResult
 
+    public var fetchProgramsBatch: @Sendable (
+        _ channelEpgIDs: [String], _ from: Int, _ to: Int
+    ) async throws -> [String: [EpgProgramRecord]]
+
     public init(
         fetchNowPlaying: @escaping @Sendable (_ channelEpgID: String) async throws -> EpgProgramRecord?,
         fetchNowPlayingBatch: @escaping @Sendable (_ channelEpgIDs: [String]) async throws -> [String: EpgProgramRecord],
-        syncEPG: @escaping @Sendable (_ playlistID: String) async throws -> EpgImportResult
+        syncEPG: @escaping @Sendable (_ playlistID: String) async throws -> EpgImportResult,
+        fetchProgramsBatch: @escaping @Sendable (
+            _ channelEpgIDs: [String], _ from: Int, _ to: Int
+        ) async throws -> [String: [EpgProgramRecord]]
     ) {
         self.fetchNowPlaying = fetchNowPlaying
         self.fetchNowPlayingBatch = fetchNowPlayingBatch
         self.syncEPG = syncEPG
+        self.fetchProgramsBatch = fetchProgramsBatch
     }
 }
 
@@ -50,6 +58,11 @@ extension EPGClient: DependencyKey {
             },
             syncEPG: { playlistID in
                 try await service.importEPG(playlistID: playlistID)
+            },
+            fetchProgramsBatch: { channelEpgIDs, from, to in
+                try epgRepo.getProgramsOverlapping(
+                    channelEpgIDs: channelEpgIDs, from: from, to: to
+                )
             }
         )
     }
@@ -58,7 +71,8 @@ extension EPGClient: DependencyKey {
         EPGClient(
             fetchNowPlaying: unimplemented("EPGClient.fetchNowPlaying"),
             fetchNowPlayingBatch: unimplemented("EPGClient.fetchNowPlayingBatch"),
-            syncEPG: unimplemented("EPGClient.syncEPG")
+            syncEPG: unimplemented("EPGClient.syncEPG"),
+            fetchProgramsBatch: unimplemented("EPGClient.fetchProgramsBatch")
         )
     }
 

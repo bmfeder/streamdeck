@@ -56,6 +56,27 @@ public struct EpgRepository: Sendable {
         }
     }
 
+    // MARK: - Batch Time-Range Query
+
+    /// Fetches programs overlapping the given time range for multiple channels.
+    /// A program overlaps if: startTime < to AND endTime > from.
+    public func getProgramsOverlapping(
+        channelEpgIDs: [String],
+        from: Int,
+        to: Int
+    ) throws -> [String: [EpgProgramRecord]] {
+        guard !channelEpgIDs.isEmpty else { return [:] }
+        return try dbManager.dbQueue.read { db in
+            let programs = try EpgProgramRecord
+                .filter(channelEpgIDs.contains(Column("channel_epg_id")))
+                .filter(Column("start_time") < to)
+                .filter(Column("end_time") > from)
+                .order(Column("channel_epg_id"), Column("start_time").asc)
+                .fetchAll(db)
+            return Dictionary(grouping: programs, by: { $0.channelEpgID })
+        }
+    }
+
     // MARK: - Purge
 
     @discardableResult

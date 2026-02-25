@@ -10,6 +10,7 @@ public struct AppFeature {
 
         public var home = HomeFeature.State()
         public var liveTV = LiveTVFeature.State()
+        public var guide = EPGGuideFeature.State()
         public var movies = MoviesFeature.State()
         public var tvShows = TVShowsFeature.State()
         public var emby = EmbyFeature.State()
@@ -25,6 +26,7 @@ public struct AppFeature {
 
         case home(HomeFeature.Action)
         case liveTV(LiveTVFeature.Action)
+        case guide(EPGGuideFeature.Action)
         case movies(MoviesFeature.Action)
         case tvShows(TVShowsFeature.Action)
         case emby(EmbyFeature.Action)
@@ -37,6 +39,7 @@ public struct AppFeature {
     public var body: some ReducerOf<Self> {
         Scope(state: \.home, action: \.home) { HomeFeature() }
         Scope(state: \.liveTV, action: \.liveTV) { LiveTVFeature() }
+        Scope(state: \.guide, action: \.guide) { EPGGuideFeature() }
         Scope(state: \.movies, action: \.movies) { MoviesFeature() }
         Scope(state: \.tvShows, action: \.tvShows) { TVShowsFeature() }
         Scope(state: \.emby, action: \.emby) { EmbyFeature() }
@@ -51,7 +54,7 @@ public struct AppFeature {
             case .acceptDisclaimerTapped:
                 state.hasAcceptedDisclaimer = true
                 return .none
-            case .home, .liveTV, .movies, .tvShows, .emby, .favorites, .settings:
+            case .home, .liveTV, .guide, .movies, .tvShows, .emby, .favorites, .settings:
                 return .none
             }
         }
@@ -84,6 +87,9 @@ public struct AppView: View {
             }
             SwiftUI.Tab(Tab.liveTV.title, systemImage: Tab.liveTV.systemImage, value: Tab.liveTV) {
                 LiveTVView(store: store.scope(state: \.liveTV, action: \.liveTV))
+            }
+            SwiftUI.Tab(Tab.guide.title, systemImage: Tab.guide.systemImage, value: Tab.guide) {
+                EPGGuideView(store: store.scope(state: \.guide, action: \.guide))
             }
             SwiftUI.Tab(Tab.movies.title, systemImage: Tab.movies.systemImage, value: Tab.movies) {
                 MoviesView(store: store.scope(state: \.movies, action: \.movies))
