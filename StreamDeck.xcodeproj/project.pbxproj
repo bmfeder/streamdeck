@@ -8,6 +8,7 @@
 
 /* Begin PBXFileReference section */
 		52689E8C2F4E6F370008AE65 /* StreamDeck.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StreamDeck.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B0000001BBBB000000000001 /* StreamDeck-iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "StreamDeck-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -20,6 +21,13 @@
 
 /* Begin PBXFrameworksBuildPhase section */
 		52689E892F4E6F370008AE65 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B0000001BBBB000000000003 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -41,6 +49,7 @@
 			isa = PBXGroup;
 			children = (
 				52689E8C2F4E6F370008AE65 /* StreamDeck.app */,
+				B0000001BBBB000000000001 /* StreamDeck-iOS.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -74,6 +83,32 @@
 			productReference = 52689E8C2F4E6F370008AE65 /* StreamDeck.app */;
 			productType = "com.apple.product-type.application";
 		};
+		B0000001BBBB000000000005 /* StreamDeck-iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B0000001BBBB000000000008 /* Build configuration list for PBXNativeTarget "StreamDeck-iOS" */;
+			buildPhases = (
+				B0000001BBBB000000000002 /* Sources */,
+				B0000001BBBB000000000003 /* Frameworks */,
+				B0000001BBBB000000000004 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				52689E8E2F4E6F370008AE65 /* App */,
+			);
+			name = "StreamDeck-iOS";
+			packageProductDependencies = (
+				B0000001BBBB000000000011 /* M3UParser */,
+				B0000001BBBB000000000012 /* XtreamClient */,
+				B0000001BBBB000000000013 /* XMLTVParser */,
+				B0000001BBBB000000000014 /* AppFeature */,
+			);
+			productName = "StreamDeck-iOS";
+			productReference = B0000001BBBB000000000001 /* StreamDeck-iOS.app */;
+			productType = "com.apple.product-type.application";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -85,6 +120,9 @@
 				LastUpgradeCheck = 2620;
 				TargetAttributes = {
 					52689E8B2F4E6F370008AE65 = {
+						CreatedOnToolsVersion = 26.2;
+					};
+					B0000001BBBB000000000005 = {
 						CreatedOnToolsVersion = 26.2;
 					};
 				};
@@ -107,6 +145,7 @@
 			);
 			targets = (
 				52689E8B2F4E6F370008AE65 /* StreamDeck */,
+				B0000001BBBB000000000005 /* StreamDeck-iOS */,
 			);
 		};
 /* End PBXProject section */
@@ -119,10 +158,24 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B0000001BBBB000000000004 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		52689E882F4E6F370008AE65 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B0000001BBBB000000000002 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -311,6 +364,70 @@
 			};
 			name = Release;
 		};
+		B0000001BBBB000000000006 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 674CG3Y6T4;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UIUserInterfaceStyle = Automatic;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = net.lctechnology.StreamDeck.ios;
+				PRODUCT_NAME = StreamDeck;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		B0000001BBBB000000000007 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 674CG3Y6T4;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UIUserInterfaceStyle = Automatic;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = net.lctechnology.StreamDeck.ios;
+				PRODUCT_NAME = StreamDeck;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -328,6 +445,15 @@
 			buildConfigurations = (
 				52689E982F4E6F3A0008AE65 /* Debug */,
 				52689E992F4E6F3A0008AE65 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B0000001BBBB000000000008 /* Build configuration list for PBXNativeTarget "StreamDeck-iOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B0000001BBBB000000000006 /* Debug */,
+				B0000001BBBB000000000007 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -355,6 +481,22 @@
 			productName = XMLTVParser;
 		};
 		A0000001AAAA000000000004 /* AppFeature */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AppFeature;
+		};
+		B0000001BBBB000000000011 /* M3UParser */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = M3UParser;
+		};
+		B0000001BBBB000000000012 /* XtreamClient */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = XtreamClient;
+		};
+		B0000001BBBB000000000013 /* XMLTVParser */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = XMLTVParser;
+		};
+		B0000001BBBB000000000014 /* AppFeature */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = AppFeature;
 		};

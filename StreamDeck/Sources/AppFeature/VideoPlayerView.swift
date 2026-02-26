@@ -51,6 +51,8 @@ public struct VideoPlayerView: View {
                 break
             }
         }
+        #elseif os(iOS)
+        .onTapGesture { store.send(.toggleOverlayTapped) }
         #endif
     }
 
