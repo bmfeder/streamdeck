@@ -534,14 +534,15 @@ public struct SettingsView: View {
     // MARK: - Edit Playlist Sheet
 
     private var editPlaylistSheet: some View {
-        NavigationStack {
-            Form {
-                Section("Name") {
-                    TextField(
-                        "Playlist Name",
-                        text: $store.editName.sending(\.editNameChanged)
-                    )
-                }
+        let isEmby = store.editingPlaylist?.type == "emby"
+        return Form {
+            Section("Name") {
+                TextField(
+                    "Playlist Name",
+                    text: $store.editName.sending(\.editNameChanged)
+                )
+            }
+            if !isEmby {
                 Section("EPG Guide URL") {
                     TextField(
                         "https://example.com/epg.xml",
@@ -552,35 +553,55 @@ public struct SettingsView: View {
                     .autocapitalization(.none)
                     #endif
                 }
-                Section("Auto-Refresh") {
-                    Picker(
-                        "Refresh Interval",
-                        selection: $store.editRefreshHrs.sending(\.editRefreshHrsChanged)
-                    ) {
-                        Text("Every hour").tag(1)
-                        Text("Every 6 hours").tag(6)
-                        Text("Every 12 hours").tag(12)
-                        Text("Every 24 hours").tag(24)
-                        Text("Every 48 hours").tag(48)
-                        Text("Manual only").tag(0)
+            }
+            Section("Auto-Refresh") {
+                Picker(
+                    "Refresh Interval",
+                    selection: $store.editRefreshHrs.sending(\.editRefreshHrsChanged)
+                ) {
+                    Text("Every hour").tag(1)
+                    Text("Every 6 hours").tag(6)
+                    Text("Every 12 hours").tag(12)
+                    Text("Every 24 hours").tag(24)
+                    Text("Every 48 hours").tag(48)
+                    Text("Manual only").tag(0)
+                }
+            }
+            Section {
+                Button {
+                    store.send(.editPlaylistSaved)
+                } label: {
+                    HStack {
+                        Spacer()
+                        Text("Save")
+                            .fontWeight(.semibold)
+                        Spacer()
+                    }
+                }
+                .disabled(store.editName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                Button(role: .cancel) {
+                    store.send(.editPlaylistCancelled)
+                } label: {
+                    HStack {
+                        Spacer()
+                        Text("Cancel")
+                        Spacer()
                     }
                 }
             }
-            .navigationTitle("Edit Playlist")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+            Section {
+                Button(role: .destructive) {
+                    if let playlist = store.editingPlaylist {
                         store.send(.editPlaylistCancelled)
+                        store.send(.deletePlaylistTapped(playlist))
                     }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        store.send(.editPlaylistSaved)
+                } label: {
+                    HStack {
+                        Spacer()
+                        Text("Delete Playlist")
+                        Spacer()
                     }
-                    .disabled(store.editName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
         }
