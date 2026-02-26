@@ -31,6 +31,8 @@ public struct ChannelListClient: Sendable {
     public var fetchFavorites: @Sendable () async throws -> [ChannelRecord]
 
     public var toggleFavorite: @Sendable (_ id: String) async throws -> Void
+
+    public var fetchByNumber: @Sendable (_ playlistID: String, _ number: Int) async throws -> ChannelRecord?
 }
 
 // MARK: - Dependency Registration
@@ -61,6 +63,9 @@ extension ChannelListClient: DependencyKey {
             },
             toggleFavorite: { id in
                 try channelRepo.toggleFavorite(id: id)
+            },
+            fetchByNumber: { playlistID, number in
+                try channelRepo.getByNumber(playlistID: playlistID, number: number)
             }
         )
     }
@@ -71,7 +76,8 @@ extension ChannelListClient: DependencyKey {
             fetchGroupedChannels: unimplemented("ChannelListClient.fetchGroupedChannels"),
             searchChannels: unimplemented("ChannelListClient.searchChannels"),
             fetchFavorites: unimplemented("ChannelListClient.fetchFavorites"),
-            toggleFavorite: unimplemented("ChannelListClient.toggleFavorite")
+            toggleFavorite: unimplemented("ChannelListClient.toggleFavorite"),
+            fetchByNumber: unimplemented("ChannelListClient.fetchByNumber")
         )
     }
 

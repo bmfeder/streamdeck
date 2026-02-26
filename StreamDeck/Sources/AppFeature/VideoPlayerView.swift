@@ -25,6 +25,10 @@ public struct VideoPlayerView: View {
                 sleepTimerPicker
             }
 
+            if store.isNumberEntryVisible {
+                numberEntryOverlay
+            }
+
             if store.isSwitcherVisible {
                 switcherOverlay
             }
@@ -329,6 +333,92 @@ public struct VideoPlayerView: View {
         .padding(24)
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    // MARK: - Channel Number Entry
+
+    private var numberEntryOverlay: some View {
+        VStack(spacing: 16) {
+            Text("Channel")
+                .font(.subheadline)
+                .foregroundStyle(.white.opacity(0.6))
+
+            Text(store.numberEntryDigits.isEmpty ? "_" : store.numberEntryDigits)
+                .font(.system(size: 48, weight: .bold, design: .monospaced))
+                .foregroundStyle(.white)
+                .frame(minWidth: 120)
+
+            numberEntryStatusLine
+
+            numberPad
+        }
+        .padding(24)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    @ViewBuilder
+    private var numberEntryStatusLine: some View {
+        switch store.numberEntryResult {
+        case .searching:
+            ProgressView()
+                .tint(.white)
+        case let .found(channel):
+            Text("\(channel.name)\(channel.groupName.map { " (\($0))" } ?? "")")
+                .font(.subheadline)
+                .foregroundStyle(.green)
+        case .notFound:
+            Text("No channel \(store.numberEntryDigits)")
+                .font(.subheadline)
+                .foregroundStyle(.red)
+        case nil:
+            Text("Enter channel number")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.4))
+        }
+    }
+
+    private var numberPad: some View {
+        VStack(spacing: 8) {
+            ForEach(0..<3) { row in
+                HStack(spacing: 8) {
+                    ForEach(1...3, id: \.self) { col in
+                        let digit = row * 3 + col
+                        numberPadButton(String(digit))
+                    }
+                }
+            }
+            HStack(spacing: 8) {
+                numberPadButton("", disabled: true)
+                numberPadButton("0")
+                Button {
+                    store.send(.numberEntryCancelled)
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.body)
+                        .foregroundStyle(.white)
+                        .frame(width: 52, height: 44)
+                        .background(Color.red.opacity(0.3))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func numberPadButton(_ digit: String, disabled: Bool = false) -> some View {
+        Button {
+            store.send(.numberDigitPressed(digit))
+        } label: {
+            Text(digit)
+                .font(.title3)
+                .foregroundStyle(.white)
+                .frame(width: 52, height: 44)
+                .background(Color.white.opacity(disabled ? 0.0 : 0.15))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
     }
 
     // MARK: - Channel Switcher

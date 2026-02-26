@@ -1126,4 +1126,177 @@ final class VideoPlayerFeatureTests: XCTestCase {
         await store.send(.overlayAutoHideExpired)
         // Overlay stays visible because picker is open
     }
+
+    // MARK: - Channel Number Entry
+
+    func testNumberDigitPressed_startsEntry() async {
+        var state = VideoPlayerFeature.State(channel: makeChannel())
+        state.isOverlayVisible = true
+
+        let store = TestStore(initialState: state) {
+            VideoPlayerFeature()
+        } withDependencies: {
+            $0.continuousClock = ImmediateClock()
+            $0.channelListClient.fetchByNumber = { _, _ in nil }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.numberDigitPressed("5")) {
+            $0.isNumberEntryVisible = true
+            $0.isOverlayVisible = false
+            $0.numberEntryDigits = "5"
+        }
+
+        await store.skipReceivedActions()
+    }
+
+    func testNumberDigitPressed_appendsMultiple() async {
+        var state = VideoPlayerFeature.State(channel: makeChannel())
+        state.isNumberEntryVisible = true
+        state.numberEntryDigits = "1"
+
+        let store = TestStore(initialState: state) {
+            VideoPlayerFeature()
+        } withDependencies: {
+            $0.continuousClock = ImmediateClock()
+            $0.channelListClient.fetchByNumber = { _, _ in nil }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.numberDigitPressed("2")) {
+            $0.numberEntryDigits = "12"
+        }
+
+        await store.skipReceivedActions()
+    }
+
+    func testNumberDigitPressed_vodItem_noOp() async {
+        let vodItem = VodItemRecord(
+            id: "vod-1",
+            playlistID: "pl-1",
+            title: "Movie",
+            type: "movie",
+            streamURL: "http://example.com/movie.mp4"
+        )
+        let store = TestStore(
+            initialState: VideoPlayerFeature.State(vodItem: vodItem)
+        ) {
+            VideoPlayerFeature()
+        }
+
+        await store.send(.numberDigitPressed("5"))
+    }
+
+    func testNumberEntryAutoHide_looksUpChannel() async {
+        let channel = makeChannel(id: "ch-42")
+
+        var state = VideoPlayerFeature.State(channel: makeChannel())
+        state.isNumberEntryVisible = true
+        state.numberEntryDigits = "42"
+
+        let store = TestStore(initialState: state) {
+            VideoPlayerFeature()
+        } withDependencies: {
+            $0.continuousClock = ImmediateClock()
+            $0.channelListClient.fetchByNumber = { _, number in
+                number == 42 ? channel : nil
+            }
+            $0.watchProgressClient.getProgress = { _ in nil }
+            $0.watchProgressClient.saveProgress = { _, _, _, _ in }
+            $0.streamRouterClient.route = { url in
+                StreamRoute(recommendedEngine: .avPlayer, url: url, reason: "test")
+            }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.numberEntryAutoHideExpired) {
+            $0.numberEntryResult = .searching
+        }
+
+        await store.receive(\.numberEntryLookupResult) {
+            $0.numberEntryResult = .found(channel)
+        }
+
+        await store.skipReceivedActions()
+    }
+
+    func testNumberEntryLookupResult_notFound() async {
+        var state = VideoPlayerFeature.State(channel: makeChannel())
+        state.isNumberEntryVisible = true
+        state.numberEntryDigits = "999"
+
+        let store = TestStore(initialState: state) {
+            VideoPlayerFeature()
+        } withDependencies: {
+            $0.continuousClock = ImmediateClock()
+        }
+        store.exhaustivity = .off
+
+        await store.send(.numberEntryLookupResult(nil)) {
+            $0.numberEntryResult = .notFound
+        }
+
+        // Auto-cancels after 1s (immediate with ImmediateClock)
+        await store.skipReceivedActions()
+    }
+
+    func testNumberEntryConfirmed_switchesChannel() async {
+        let targetChannel = makeChannel(id: "ch-42", name: "CNN", streamURL: "http://example.com/cnn.m3u8")
+        let url = URL(string: "http://example.com/cnn.m3u8")!
+
+        var state = VideoPlayerFeature.State(channel: makeChannel())
+        state.status = .playing
+        state.isNumberEntryVisible = true
+        state.numberEntryDigits = "42"
+        state.numberEntryResult = .found(targetChannel)
+
+        let store = TestStore(initialState: state) {
+            VideoPlayerFeature()
+        } withDependencies: {
+            $0.streamRouterClient.route = { _ in
+                StreamRoute(recommendedEngine: .avPlayer, url: url, reason: "test")
+            }
+            $0.continuousClock = ImmediateClock()
+            $0.watchProgressClient.getProgress = { _ in nil }
+            $0.watchProgressClient.saveProgress = { _, _, _, _ in }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.numberEntryConfirmed) {
+            $0.isNumberEntryVisible = false
+            $0.numberEntryDigits = ""
+            $0.numberEntryResult = nil
+            $0.item = PlayableItem(channel: targetChannel)
+            $0.status = .idle
+            $0.activeEngine = nil
+            $0.streamRoute = nil
+            $0.playerCommand = .stop
+            $0.retryCount = 0
+            $0.hasTriedFallbackEngine = false
+            $0.resumePositionMs = nil
+            $0.currentPositionMs = 0
+            $0.currentDurationMs = nil
+        }
+
+        await store.receive(\.delegate.channelSwitched)
+
+        await store.skipReceivedActions()
+    }
+
+    func testNumberEntryCancelled_clearsState() async {
+        var state = VideoPlayerFeature.State(channel: makeChannel())
+        state.isNumberEntryVisible = true
+        state.numberEntryDigits = "12"
+        state.numberEntryResult = .notFound
+
+        let store = TestStore(initialState: state) {
+            VideoPlayerFeature()
+        }
+
+        await store.send(.numberEntryCancelled) {
+            $0.isNumberEntryVisible = false
+            $0.numberEntryDigits = ""
+            $0.numberEntryResult = nil
+        }
+    }
 }

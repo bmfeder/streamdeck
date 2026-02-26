@@ -32,6 +32,11 @@ public struct VideoPlayerFeature {
         public var sleepTimerMinutesRemaining: Int?
         public var isSleepTimerPickerVisible: Bool = false
 
+        // Channel number entry
+        public var numberEntryDigits: String = ""
+        public var isNumberEntryVisible: Bool = false
+        public var numberEntryResult: NumberEntryResult?
+
         public static let maxRetriesPerEngine: Int = 3
 
         public init(channel: ChannelRecord) {
@@ -48,6 +53,12 @@ public struct VideoPlayerFeature {
             self.item = item
             self.isLiveChannel = isLiveChannel
         }
+    }
+
+    public enum NumberEntryResult: Equatable, Sendable {
+        case searching
+        case found(ChannelRecord)
+        case notFound
     }
 
     public enum Action: Sendable {
@@ -78,6 +89,12 @@ public struct VideoPlayerFeature {
         case sleepTimerSelected(minutes: Int?)
         case sleepTimerTick
         case sleepTimerFired
+        // Channel number entry
+        case numberDigitPressed(String)
+        case numberEntryAutoHideExpired
+        case numberEntryLookupResult(ChannelRecord?)
+        case numberEntryConfirmed
+        case numberEntryCancelled
         case delegate(Delegate)
 
         @CasePathable
@@ -103,6 +120,7 @@ public struct VideoPlayerFeature {
         case switcherTimer
         case sleepTimer
         case sleepTimerTick
+        case numberEntryTimer
     }
 
     public var body: some ReducerOf<Self> {
@@ -141,7 +159,8 @@ public struct VideoPlayerFeature {
                     .cancel(id: CancelID.progressTimer),
                     .cancel(id: CancelID.switcherTimer),
                     .cancel(id: CancelID.sleepTimer),
-                    .cancel(id: CancelID.sleepTimerTick)
+                    .cancel(id: CancelID.sleepTimerTick),
+                    .cancel(id: CancelID.numberEntryTimer)
                 )
 
             case .dismissTapped:
@@ -402,6 +421,93 @@ public struct VideoPlayerFeature {
                     }
                 )
 
+            // MARK: - Channel Number Entry
+
+            case let .numberDigitPressed(digit):
+                guard state.isLiveChannel else { return .none }
+                if !state.isNumberEntryVisible {
+                    state.isNumberEntryVisible = true
+                    state.isOverlayVisible = false
+                    state.isSwitcherVisible = false
+                    state.isSleepTimerPickerVisible = false
+                }
+                state.numberEntryDigits.append(digit)
+                state.numberEntryResult = nil
+                return startNumberEntryTimer()
+
+            case .numberEntryAutoHideExpired:
+                guard !state.numberEntryDigits.isEmpty,
+                      let number = Int(state.numberEntryDigits),
+                      let playlistID = state.item.playlistID else {
+                    state.isNumberEntryVisible = false
+                    state.numberEntryDigits = ""
+                    state.numberEntryResult = nil
+                    return .none
+                }
+                state.numberEntryResult = .searching
+                let client = channelListClient
+                return .run { send in
+                    let channel = try await client.fetchByNumber(playlistID, number)
+                    await send(.numberEntryLookupResult(channel))
+                } catch: { _, send in
+                    await send(.numberEntryLookupResult(nil))
+                }
+
+            case let .numberEntryLookupResult(channel):
+                if let channel {
+                    state.numberEntryResult = .found(channel)
+                    let delayClock = clock
+                    return .run { send in
+                        try await delayClock.sleep(for: .milliseconds(500))
+                        await send(.numberEntryConfirmed)
+                    }
+                    .cancellable(id: CancelID.numberEntryTimer, cancelInFlight: true)
+                } else {
+                    state.numberEntryResult = .notFound
+                    let delayClock = clock
+                    return .run { send in
+                        try await delayClock.sleep(for: .seconds(1))
+                        await send(.numberEntryCancelled)
+                    }
+                    .cancellable(id: CancelID.numberEntryTimer, cancelInFlight: true)
+                }
+
+            case .numberEntryConfirmed:
+                guard case let .found(channel) = state.numberEntryResult else {
+                    return .send(.numberEntryCancelled)
+                }
+                // Clear number entry state
+                state.isNumberEntryVisible = false
+                state.numberEntryDigits = ""
+                state.numberEntryResult = nil
+                // If same channel, just close
+                guard channel.id != state.item.contentID else { return .none }
+                // Switch channel (same pattern as switcherChannelSelected)
+                let saveEffect = saveProgressEffect(state: state)
+                state.item = PlayableItem(channel: channel)
+                state.status = .idle
+                state.activeEngine = nil
+                state.streamRoute = nil
+                state.playerCommand = .stop
+                state.retryCount = 0
+                state.hasTriedFallbackEngine = false
+                state.resumePositionMs = nil
+                state.currentPositionMs = 0
+                state.currentDurationMs = nil
+                return .merge(
+                    saveEffect,
+                    .cancel(id: CancelID.retryTimer),
+                    .cancel(id: CancelID.progressTimer),
+                    .send(.delegate(.channelSwitched(channel))),
+                    .send(.onAppear)
+                )
+
+            case .numberEntryCancelled:
+                state.isNumberEntryVisible = false
+                state.numberEntryDigits = ""
+                state.numberEntryResult = nil
+                return .cancel(id: CancelID.numberEntryTimer)
+
             case .delegate:
                 return .none
             }
@@ -470,6 +576,15 @@ public struct VideoPlayerFeature {
             }
         }
         .cancellable(id: CancelID.sleepTimerTick, cancelInFlight: true)
+    }
+
+    private func startNumberEntryTimer() -> Effect<Action> {
+        let entryClock = clock
+        return .run { send in
+            try await entryClock.sleep(for: .seconds(2))
+            await send(.numberEntryAutoHideExpired)
+        }
+        .cancellable(id: CancelID.numberEntryTimer, cancelInFlight: true)
     }
 
     private func saveProgressEffect(state: State) -> Effect<Action> {
