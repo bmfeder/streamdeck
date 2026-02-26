@@ -21,6 +21,10 @@ public struct VideoPlayerView: View {
 
             statusOverlay
 
+            if store.isSleepTimerPickerVisible {
+                sleepTimerPicker
+            }
+
             if store.isSwitcherVisible {
                 switcherOverlay
             }
@@ -111,6 +115,8 @@ public struct VideoPlayerView: View {
                 .buttonStyle(.plain)
 
                 Spacer()
+
+                sleepTimerButton
 
                 if let engine = store.activeEngine {
                     Text(engine == .avPlayer ? "AVPlayer" : "VLCKit")
@@ -243,6 +249,86 @@ public struct VideoPlayerView: View {
         case .decodingFailed: return "Unable to decode this stream format."
         case let .unknown(msg): return msg
         }
+    }
+
+    // MARK: - Sleep Timer
+
+    private var sleepTimerButton: some View {
+        Button {
+            store.send(.sleepTimerButtonTapped)
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: store.sleepTimerEndDate != nil ? "moon.fill" : "moon.zzz")
+                    .font(.caption)
+                if let remaining = store.sleepTimerMinutesRemaining, remaining > 0 {
+                    Text("\(remaining)m")
+                        .font(.caption)
+                        .monospacedDigit()
+                }
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                store.sleepTimerEndDate != nil
+                    ? Color.purple.opacity(0.6)
+                    : Color.clear
+            )
+            .background(.ultraThinMaterial)
+            .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .padding(.trailing, 8)
+    }
+
+    private var sleepTimerPicker: some View {
+        VStack(spacing: 12) {
+            Text("Sleep Timer")
+                .font(.headline)
+                .foregroundStyle(.white)
+
+            ForEach([15, 30, 60, 90], id: \.self) { minutes in
+                Button {
+                    store.send(.sleepTimerSelected(minutes: minutes))
+                } label: {
+                    Text("\(minutes) minutes")
+                        .font(.body)
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: 200)
+                        .padding(.vertical, 8)
+                        .background(Color.white.opacity(0.15))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+            }
+
+            if store.sleepTimerEndDate != nil {
+                Button {
+                    store.send(.sleepTimerSelected(minutes: nil))
+                } label: {
+                    Text("Turn Off")
+                        .font(.body)
+                        .foregroundStyle(.red)
+                        .frame(maxWidth: 200)
+                        .padding(.vertical, 8)
+                        .background(Color.white.opacity(0.15))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+            }
+
+            Button {
+                store.send(.sleepTimerButtonTapped)
+            } label: {
+                Text("Cancel")
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.6))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(24)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
     // MARK: - Channel Switcher

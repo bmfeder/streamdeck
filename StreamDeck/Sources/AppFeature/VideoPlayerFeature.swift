@@ -27,6 +27,11 @@ public struct VideoPlayerFeature {
         public var switcherChannels: [ChannelRecord] = []
         public var switcherNowPlaying: [String: String] = [:]
 
+        // Sleep timer
+        public var sleepTimerEndDate: Date?
+        public var sleepTimerMinutesRemaining: Int?
+        public var isSleepTimerPickerVisible: Bool = false
+
         public static let maxRetriesPerEngine: Int = 3
 
         public init(channel: ChannelRecord) {
@@ -68,6 +73,11 @@ public struct VideoPlayerFeature {
         case switcherEPGLoaded(Result<[String: String], Error>)
         case switcherChannelSelected(ChannelRecord)
         case switcherAutoHideExpired
+        // Sleep timer
+        case sleepTimerButtonTapped
+        case sleepTimerSelected(minutes: Int?)
+        case sleepTimerTick
+        case sleepTimerFired
         case delegate(Delegate)
 
         @CasePathable
@@ -91,6 +101,8 @@ public struct VideoPlayerFeature {
         case retryTimer
         case progressTimer
         case switcherTimer
+        case sleepTimer
+        case sleepTimerTick
     }
 
     public var body: some ReducerOf<Self> {
@@ -127,7 +139,9 @@ public struct VideoPlayerFeature {
                     .cancel(id: CancelID.overlayTimer),
                     .cancel(id: CancelID.retryTimer),
                     .cancel(id: CancelID.progressTimer),
-                    .cancel(id: CancelID.switcherTimer)
+                    .cancel(id: CancelID.switcherTimer),
+                    .cancel(id: CancelID.sleepTimer),
+                    .cancel(id: CancelID.sleepTimerTick)
                 )
 
             case .dismissTapped:
@@ -234,7 +248,7 @@ public struct VideoPlayerFeature {
                 return .cancel(id: CancelID.overlayTimer)
 
             case .overlayAutoHideExpired:
-                if state.status == .playing {
+                if state.status == .playing && !state.isSleepTimerPickerVisible {
                     state.isOverlayVisible = false
                 }
                 return .none
@@ -341,6 +355,53 @@ public struct VideoPlayerFeature {
                 state.switcherNowPlaying = [:]
                 return .none
 
+            // MARK: - Sleep Timer
+
+            case .sleepTimerButtonTapped:
+                state.isSleepTimerPickerVisible.toggle()
+                if !state.isSleepTimerPickerVisible {
+                    return startOverlayTimer()
+                }
+                return .cancel(id: CancelID.overlayTimer)
+
+            case let .sleepTimerSelected(minutes):
+                state.isSleepTimerPickerVisible = false
+                guard let minutes else {
+                    state.sleepTimerEndDate = nil
+                    state.sleepTimerMinutesRemaining = nil
+                    return .merge(
+                        .cancel(id: CancelID.sleepTimer),
+                        .cancel(id: CancelID.sleepTimerTick),
+                        startOverlayTimer()
+                    )
+                }
+                state.sleepTimerEndDate = Date().addingTimeInterval(Double(minutes) * 60)
+                state.sleepTimerMinutesRemaining = minutes
+                return .merge(
+                    startSleepTimer(duration: .seconds(minutes * 60)),
+                    startSleepTimerTick(),
+                    startOverlayTimer()
+                )
+
+            case .sleepTimerTick:
+                guard let endDate = state.sleepTimerEndDate else { return .none }
+                let remaining = Int(ceil(endDate.timeIntervalSinceNow / 60.0))
+                state.sleepTimerMinutesRemaining = max(remaining, 0)
+                return .none
+
+            case .sleepTimerFired:
+                state.sleepTimerEndDate = nil
+                state.sleepTimerMinutesRemaining = nil
+                let saveEffect = saveProgressEffect(state: state)
+                state.playerCommand = .stop
+                return .merge(
+                    saveEffect,
+                    .cancel(id: CancelID.sleepTimerTick),
+                    .run { send in
+                        await send(.delegate(.dismissed))
+                    }
+                )
+
             case .delegate:
                 return .none
             }
@@ -390,6 +451,25 @@ public struct VideoPlayerFeature {
             await send(.switcherAutoHideExpired)
         }
         .cancellable(id: CancelID.switcherTimer, cancelInFlight: true)
+    }
+
+    private func startSleepTimer(duration: Duration) -> Effect<Action> {
+        let sleepClock = clock
+        return .run { send in
+            try await sleepClock.sleep(for: duration)
+            await send(.sleepTimerFired)
+        }
+        .cancellable(id: CancelID.sleepTimer, cancelInFlight: true)
+    }
+
+    private func startSleepTimerTick() -> Effect<Action> {
+        let tickClock = clock
+        return .run { send in
+            for await _ in tickClock.timer(interval: .seconds(60)) {
+                await send(.sleepTimerTick)
+            }
+        }
+        .cancellable(id: CancelID.sleepTimerTick, cancelInFlight: true)
     }
 
     private func saveProgressEffect(state: State) -> Effect<Action> {

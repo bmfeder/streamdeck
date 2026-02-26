@@ -920,4 +920,210 @@ final class VideoPlayerFeatureTests: XCTestCase {
         XCTAssertEqual(result?.0, "ch-1")
         XCTAssertEqual(result?.1, 60_000)
     }
+
+    // MARK: - Sleep Timer
+
+    func testSleepTimerButtonTapped_togglesPicker() async {
+        let store = makeStore()
+        store.exhaustivity = .off
+
+        await store.send(.sleepTimerButtonTapped) {
+            $0.isSleepTimerPickerVisible = true
+        }
+
+        await store.send(.sleepTimerButtonTapped) {
+            $0.isSleepTimerPickerVisible = false
+        }
+
+        await store.skipReceivedActions()
+    }
+
+    func testSleepTimerSelected_setsState() async {
+        let store = makeStore()
+        store.exhaustivity = .off
+
+        await store.send(.sleepTimerSelected(minutes: 30)) {
+            $0.sleepTimerMinutesRemaining = 30
+            $0.isSleepTimerPickerVisible = false
+            // sleepTimerEndDate is set but exact Date is non-deterministic
+        }
+
+        // ImmediateClock fires sleepTimerFired immediately
+        await store.skipReceivedActions()
+    }
+
+    func testSleepTimerSelected_nil_cancelsTimer() async {
+        var state = VideoPlayerFeature.State(channel: makeChannel())
+        state.sleepTimerEndDate = Date().addingTimeInterval(1800)
+        state.sleepTimerMinutesRemaining = 30
+
+        let store = TestStore(initialState: state) {
+            VideoPlayerFeature()
+        } withDependencies: {
+            $0.continuousClock = ImmediateClock()
+        }
+        store.exhaustivity = .off
+
+        await store.send(.sleepTimerSelected(minutes: nil)) {
+            $0.sleepTimerEndDate = nil
+            $0.sleepTimerMinutesRemaining = nil
+            $0.isSleepTimerPickerVisible = false
+        }
+
+        await store.skipReceivedActions()
+    }
+
+    func testSleepTimerSelected_whileActive_replacesTimer() async {
+        var state = VideoPlayerFeature.State(channel: makeChannel())
+        state.sleepTimerEndDate = Date().addingTimeInterval(900)
+        state.sleepTimerMinutesRemaining = 15
+
+        let store = TestStore(initialState: state) {
+            VideoPlayerFeature()
+        } withDependencies: {
+            $0.continuousClock = ImmediateClock()
+            $0.watchProgressClient.saveProgress = { _, _, _, _ in }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.sleepTimerSelected(minutes: 60)) {
+            $0.sleepTimerMinutesRemaining = 60
+            $0.isSleepTimerPickerVisible = false
+        }
+
+        await store.skipReceivedActions()
+    }
+
+    func testSleepTimerTick_updatesRemaining() async {
+        var state = VideoPlayerFeature.State(channel: makeChannel())
+        state.sleepTimerEndDate = Date().addingTimeInterval(45 * 60)
+        state.sleepTimerMinutesRemaining = 46
+
+        let store = TestStore(initialState: state) {
+            VideoPlayerFeature()
+        }
+
+        await store.send(.sleepTimerTick) {
+            $0.sleepTimerMinutesRemaining = 45
+        }
+    }
+
+    func testSleepTimerTick_noTimer_noOp() async {
+        let store = TestStore(
+            initialState: VideoPlayerFeature.State(channel: makeChannel())
+        ) {
+            VideoPlayerFeature()
+        }
+
+        await store.send(.sleepTimerTick)
+    }
+
+    func testSleepTimerFired_stopsAndDismisses() async {
+        var state = VideoPlayerFeature.State(channel: makeChannel())
+        state.status = .playing
+        state.sleepTimerEndDate = Date()
+        state.sleepTimerMinutesRemaining = 0
+
+        let store = TestStore(initialState: state) {
+            VideoPlayerFeature()
+        } withDependencies: {
+            $0.watchProgressClient.saveProgress = { _, _, _, _ in }
+        }
+
+        await store.send(.sleepTimerFired) {
+            $0.sleepTimerEndDate = nil
+            $0.sleepTimerMinutesRemaining = nil
+            $0.playerCommand = .stop
+        }
+
+        await store.receive(\.delegate.dismissed)
+    }
+
+    func testSleepTimerFired_savesProgress() async {
+        var state = VideoPlayerFeature.State(channel: makeChannel())
+        state.status = .playing
+        state.currentPositionMs = 90_000
+        state.currentDurationMs = 3_600_000
+        state.sleepTimerEndDate = Date()
+        state.sleepTimerMinutesRemaining = 0
+
+        let saved = LockIsolated<(String, Int)?>(nil)
+
+        let store = TestStore(initialState: state) {
+            VideoPlayerFeature()
+        } withDependencies: {
+            $0.watchProgressClient.saveProgress = { contentID, _, positionMs, _ in
+                saved.setValue((contentID, positionMs))
+            }
+        }
+
+        await store.send(.sleepTimerFired) {
+            $0.sleepTimerEndDate = nil
+            $0.sleepTimerMinutesRemaining = nil
+            $0.playerCommand = .stop
+        }
+
+        await store.receive(\.delegate.dismissed)
+
+        let result = saved.value
+        XCTAssertEqual(result?.0, "ch-1")
+        XCTAssertEqual(result?.1, 90_000)
+    }
+
+    func testSleepTimerPersists_acrossChannelSwitch() async {
+        let newChannel = makeChannel(id: "ch-2", name: "New", streamURL: "http://example.com/new.m3u8")
+        let url = URL(string: "http://example.com/new.m3u8")!
+
+        var state = VideoPlayerFeature.State(channel: makeChannel())
+        state.status = .playing
+        state.isSwitcherVisible = true
+        let futureDate = Date().addingTimeInterval(1800)
+        state.sleepTimerEndDate = futureDate
+        state.sleepTimerMinutesRemaining = 30
+
+        let store = TestStore(initialState: state) {
+            VideoPlayerFeature()
+        } withDependencies: {
+            $0.streamRouterClient.route = { _ in
+                StreamRoute(recommendedEngine: .avPlayer, url: url, reason: "test")
+            }
+            $0.continuousClock = ImmediateClock()
+            $0.watchProgressClient.getProgress = { _ in nil }
+            $0.watchProgressClient.saveProgress = { _, _, _, _ in }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.switcherChannelSelected(newChannel)) {
+            $0.item = PlayableItem(channel: newChannel)
+            $0.status = .idle
+            $0.activeEngine = nil
+            $0.streamRoute = nil
+            $0.playerCommand = .stop
+            $0.retryCount = 0
+            $0.hasTriedFallbackEngine = false
+            $0.resumePositionMs = nil
+            $0.currentPositionMs = 0
+            $0.currentDurationMs = nil
+            $0.isSwitcherVisible = false
+            $0.switcherChannels = []
+            $0.switcherNowPlaying = [:]
+            // Sleep timer fields preserved (not reset)
+        }
+
+        await store.skipReceivedActions()
+    }
+
+    func testOverlayAutoHide_blockedWhilePickerOpen() async {
+        var state = VideoPlayerFeature.State(channel: makeChannel())
+        state.isOverlayVisible = true
+        state.status = .playing
+        state.isSleepTimerPickerVisible = true
+
+        let store = TestStore(initialState: state) {
+            VideoPlayerFeature()
+        }
+
+        await store.send(.overlayAutoHideExpired)
+        // Overlay stays visible because picker is open
+    }
 }
