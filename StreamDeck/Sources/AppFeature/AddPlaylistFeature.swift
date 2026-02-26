@@ -265,70 +265,69 @@ public struct AddPlaylistView: View {
     }
 
     public var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    Picker("Source Type", selection: $store.sourceType.sending(\.sourceTypeChanged)) {
-                        ForEach(AddPlaylistFeature.SourceType.allCases, id: \.self) { type in
-                            Text(type.rawValue).tag(type)
-                        }
+        Form {
+            Section {
+                Picker("Source Type", selection: $store.sourceType.sending(\.sourceTypeChanged)) {
+                    ForEach(AddPlaylistFeature.SourceType.allCases, id: \.self) { type in
+                        Text(type.rawValue).tag(type)
                     }
-                    .pickerStyle(.segmented)
                 }
+                .pickerStyle(.segmented)
+            }
 
-                switch store.sourceType {
-                case .m3u:
-                    m3uFields
-                case .xtream:
-                    xtreamFields
-                case .emby:
-                    embyFields
+            switch store.sourceType {
+            case .m3u:
+                m3uFields
+            case .xtream:
+                xtreamFields
+            case .emby:
+                embyFields
+            }
+
+            if let result = store.importResult {
+                Section("Import Complete") {
+                    LabeledContent("Playlist", value: result.playlistName)
+                    LabeledContent("Channels Added", value: "\(result.channelsAdded)")
+                    if result.parseWarnings > 0 {
+                        LabeledContent("Warnings", value: "\(result.parseWarnings)")
+                    }
                 }
+            }
 
+            if let error = store.errorMessage {
                 Section {
-                    Button {
-                        store.send(.importButtonTapped)
-                    } label: {
+                    Text(error)
+                        .foregroundStyle(.red)
+                    Button("Dismiss") {
+                        store.send(.dismissErrorTapped)
+                    }
+                }
+            }
+
+            Section {
+                Button {
+                    store.send(.importButtonTapped)
+                } label: {
+                    HStack {
+                        Spacer()
                         if store.isImporting {
                             ProgressView()
                         } else {
                             Text("Import")
+                                .fontWeight(.semibold)
                         }
+                        Spacer()
                     }
-                    .disabled(!store.isFormValid || store.isImporting)
                 }
+                .disabled(!store.isFormValid || store.isImporting)
 
-                if let result = store.importResult {
-                    Section("Import Complete") {
-                        LabeledContent("Playlist", value: result.playlistName)
-                        LabeledContent("Channels Added", value: "\(result.channelsAdded)")
-                        if result.parseWarnings > 0 {
-                            LabeledContent("Warnings", value: "\(result.parseWarnings)")
-                        }
-                    }
-                }
-
-                if let error = store.errorMessage {
-                    Section {
-                        Text(error)
-                            .foregroundStyle(.red)
-                        Button("Dismiss") {
-                            store.send(.dismissErrorTapped)
-                        }
-                    }
-                }
-            }
-            .navigationTitle("Add Source")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { store.send(.dismissTapped) }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    if store.isImporting {
-                        ProgressView()
-                    } else {
-                        Button("Import") { store.send(.importButtonTapped) }
-                            .disabled(!store.isFormValid)
+                Button(role: .cancel) {
+                    store.send(.dismissTapped)
+                } label: {
+                    HStack {
+                        Spacer()
+                        Text("Cancel")
+                        Spacer()
                     }
                 }
             }
