@@ -33,37 +33,67 @@ public struct CloudKitSyncClient: Sendable {
 // MARK: - Dependency Registration
 
 extension CloudKitSyncClient: DependencyKey {
+    /// Lazily creates the CKContainer and CloudKitSyncService on first use.
+    /// This avoids triggering the entitlements check at app launch when running
+    /// in environments without CloudKit (e.g. Simulator without iCloud sign-in).
+    private final class LazyService: Sendable {
+        private let _service = LockIsolated<CloudKitSyncService?>(nil)
+        private let _container = LockIsolated<CKContainer?>(nil)
+
+        var container: CKContainer {
+            _container.withValue { value in
+                if let c = value { return c }
+                let c = CKContainer(identifier: "iCloud.net.lctechnology.StreamDeck")
+                value = c
+                return c
+            }
+        }
+
+        var service: CloudKitSyncService {
+            _service.withValue { value in
+                if let s = value { return s }
+                let dbManager = try! DatabaseManager(path: CloudKitSyncClient.databasePath())
+                let s = CloudKitSyncService(
+                    database: container.privateCloudDatabase,
+                    dbManager: dbManager
+                )
+                value = s
+                return s
+            }
+        }
+    }
+
     public static var liveValue: CloudKitSyncClient {
-        let container = CKContainer(identifier: "iCloud.net.lctechnology.StreamDeck")
-        let dbManager = try! DatabaseManager(path: Self.databasePath())
-        let service = CloudKitSyncService(
-            database: container.privateCloudDatabase,
-            dbManager: dbManager
-        )
+        let lazy = LazyService()
 
         return CloudKitSyncClient(
             isAvailable: {
-                await CloudKitSyncService.checkAccountStatus(container: container)
+                do {
+                    let status = try await lazy.container.accountStatus()
+                    return status == .available
+                } catch {
+                    return false
+                }
             },
             pullAll: {
-                try await service.pullAll()
+                try await lazy.service.pullAll()
             },
             pushPlaylist: { record in
-                try await service.pushPlaylist(record)
+                try await lazy.service.pushPlaylist(record)
             },
             pushPlaylistDeletion: { playlistID in
-                try await service.pushPlaylistDeletion(playlistID)
+                try await lazy.service.pushPlaylistDeletion(playlistID)
             },
             pushFavorite: { channelID, playlistID, isFavorite in
-                try await service.pushFavorite(
+                try await lazy.service.pushFavorite(
                     channelID: channelID, playlistID: playlistID, isFavorite: isFavorite
                 )
             },
             pushWatchProgress: { record in
-                try await service.pushWatchProgress(record)
+                try await lazy.service.pushWatchProgress(record)
             },
             pushPreferences: { prefs in
-                try await service.pushPreferences(prefs)
+                try await lazy.service.pushPreferences(prefs)
             }
         )
     }
