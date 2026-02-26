@@ -245,6 +245,8 @@ public struct AddPlaylistFeature {
             return "Authentication failed. Check your username and password."
         case PlaylistImportError.accountExpired:
             return "This account has expired."
+        case PlaylistImportError.networkError(let detail) where detail.contains("timed out"):
+            return "Connection timed out. Check the server URL and try again."
         case PlaylistImportError.networkError:
             return "Network error. Check your internet connection and try again."
         default:

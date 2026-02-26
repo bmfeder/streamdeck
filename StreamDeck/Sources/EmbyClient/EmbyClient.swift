@@ -38,6 +38,7 @@ public final class EmbyClient: Sendable {
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        request.timeoutInterval = 15
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(authorizationHeader, forHTTPHeaderField: "X-Emby-Authorization")
 
@@ -188,6 +189,7 @@ public final class EmbyClient: Sendable {
 
     private func fetchAuthenticated<T: Decodable>(url: URL, accessToken: String) async throws -> T {
         var request = URLRequest(url: url)
+        request.timeoutInterval = 15
         request.setValue(accessToken, forHTTPHeaderField: "X-Emby-Token")
 
         let data: Data
