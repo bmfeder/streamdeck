@@ -15,6 +15,7 @@ public struct HomeFeature {
     @ObservableState
     public struct State: Equatable, Sendable {
         public var continueWatchingItems: [ContinueWatchingItem] = []
+        public var recentChannels: [ChannelRecord] = []
         public var favoriteChannels: [ChannelRecord] = []
         public var nowPlaying: [String: String] = [:]
         public var isLoading: Bool = false
@@ -27,10 +28,12 @@ public struct HomeFeature {
     public enum Action: Sendable {
         case onAppear
         case continueWatchingLoaded(Result<[ContinueWatchingItem], Error>)
+        case recentChannelsLoaded(Result<[ChannelRecord], Error>)
         case favoritesLoaded(Result<[ChannelRecord], Error>)
         case epgDataLoaded(Result<[String: String], Error>)
         case refreshTapped
         case continueWatchingItemTapped(ContinueWatchingItem)
+        case recentChannelTapped(ChannelRecord)
         case favoriteChannelTapped(ChannelRecord)
         case videoPlayer(PresentationAction<VideoPlayerFeature.Action>)
         case delegate(Delegate)
@@ -98,6 +101,21 @@ public struct HomeFeature {
                         await send(.favoritesLoaded(.success(favorites)))
                     } catch: { error, send in
                         await send(.favoritesLoaded(.failure(error)))
+                    },
+                    .run { send in
+                        let recentProgress = try await progressClient.getRecentlyWatched(20)
+                        let contentIDs = recentProgress.map(\.contentID)
+                        guard !contentIDs.isEmpty else {
+                            await send(.recentChannelsLoaded(.success([])))
+                            return
+                        }
+                        let channels = try await channelClient.fetchByIDs(contentIDs)
+                        let channelMap = Dictionary(channels.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+                        // Preserve recency order from progress records
+                        let ordered = contentIDs.compactMap { channelMap[$0] }
+                        await send(.recentChannelsLoaded(.success(ordered)))
+                    } catch: { error, send in
+                        await send(.recentChannelsLoaded(.failure(error)))
                     }
                 )
 
@@ -109,6 +127,17 @@ public struct HomeFeature {
             case .continueWatchingLoaded(.failure):
                 state.isLoading = false
                 return .none
+
+            case let .recentChannelsLoaded(.success(channels)):
+                state.recentChannels = channels
+                return fetchEPGData(for: channels)
+
+            case .recentChannelsLoaded(.failure):
+                return .none
+
+            case let .recentChannelTapped(channel):
+                state.videoPlayer = VideoPlayerFeature.State(channel: channel)
+                return .send(.delegate(.playChannel(channel)))
 
             case let .favoritesLoaded(.success(channels)):
                 state.favoriteChannels = channels
@@ -169,9 +198,9 @@ public struct HomeView: View {
     public var body: some View {
         NavigationStack {
             Group {
-                if store.isLoading && store.continueWatchingItems.isEmpty && store.favoriteChannels.isEmpty {
+                if store.isLoading && store.continueWatchingItems.isEmpty && store.recentChannels.isEmpty && store.favoriteChannels.isEmpty {
                     loadingView
-                } else if store.continueWatchingItems.isEmpty && store.favoriteChannels.isEmpty {
+                } else if store.continueWatchingItems.isEmpty && store.recentChannels.isEmpty && store.favoriteChannels.isEmpty {
                     emptyView
                 } else {
                     dashboardContent
@@ -203,6 +232,9 @@ public struct HomeView: View {
             VStack(alignment: .leading, spacing: 32) {
                 if !store.continueWatchingItems.isEmpty {
                     continueWatchingSection
+                }
+                if !store.recentChannels.isEmpty {
+                    recentChannelsSection
                 }
                 if !store.favoriteChannels.isEmpty {
                     favoritesSection
@@ -247,6 +279,37 @@ public struct HomeView: View {
                         }
                         .buttonStyle(.plain)
                         .focused($focusedItemID, equals: item.id)
+                    }
+                }
+                .padding(.horizontal, 20)
+            }
+        }
+    }
+
+    // MARK: - Recently Watched
+
+    private var recentChannelsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Recently Watched")
+                .font(.title2)
+                .fontWeight(.bold)
+                .padding(.horizontal, 20)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 16) {
+                    ForEach(store.recentChannels, id: \.id) { channel in
+                        Button {
+                            store.send(.recentChannelTapped(channel))
+                        } label: {
+                            ChannelTileView(
+                                channel: channel,
+                                isFocused: focusedItemID == channel.id,
+                                nowPlaying: store.nowPlaying[channel.epgID ?? ""]
+                                    ?? store.nowPlaying[channel.tvgID ?? ""]
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .focused($focusedItemID, equals: channel.id)
                     }
                 }
                 .padding(.horizontal, 20)

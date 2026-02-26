@@ -277,6 +277,16 @@ public struct ChannelRepository: Sendable {
         }
     }
 
+    /// Fetches multiple channels by their IDs.
+    public func getBatch(ids: [String]) throws -> [ChannelRecord] {
+        guard !ids.isEmpty else { return [] }
+        return try dbManager.dbQueue.read { db in
+            try ChannelRecord
+                .filter(ids.contains(Column("id")))
+                .fetchAll(db)
+        }
+    }
+
     // MARK: - Favorites
 
     /// Toggles the favorite status of a channel.

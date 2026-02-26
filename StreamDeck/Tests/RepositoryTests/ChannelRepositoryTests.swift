@@ -409,6 +409,25 @@ final class ChannelRepositoryTests: XCTestCase {
 
     // MARK: - Favorites
 
+    // MARK: - Batch Lookup
+
+    func testGetBatch_returnsMatchingChannels() throws {
+        try repo.create(makeChannel(id: "ch-1", name: "CNN"))
+        try repo.create(makeChannel(id: "ch-2", name: "ESPN"))
+        try repo.create(makeChannel(id: "ch-3", name: "BBC"))
+
+        let batch = try repo.getBatch(ids: ["ch-1", "ch-3", "ch-nonexistent"])
+        XCTAssertEqual(batch.count, 2)
+        XCTAssertEqual(Set(batch.map(\.id)), ["ch-1", "ch-3"])
+    }
+
+    func testGetBatch_emptyIDs_returnsEmpty() throws {
+        try repo.create(makeChannel(id: "ch-1", name: "CNN"))
+
+        let batch = try repo.getBatch(ids: [])
+        XCTAssertTrue(batch.isEmpty)
+    }
+
     func testToggleFavorite() throws {
         try repo.create(makeChannel(id: "ch-1"))
 

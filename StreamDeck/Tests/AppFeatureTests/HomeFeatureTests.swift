@@ -53,6 +53,7 @@ final class HomeFeatureTests: XCTestCase {
     func testInitialState_isEmpty() {
         let state = HomeFeature.State()
         XCTAssertTrue(state.continueWatchingItems.isEmpty)
+        XCTAssertTrue(state.recentChannels.isEmpty)
         XCTAssertTrue(state.favoriteChannels.isEmpty)
         XCTAssertTrue(state.nowPlaying.isEmpty)
         XCTAssertFalse(state.isLoading)
@@ -70,6 +71,7 @@ final class HomeFeatureTests: XCTestCase {
             HomeFeature()
         } withDependencies: {
             $0.watchProgressClient.getUnfinished = { _ in [progressRecord] }
+            $0.watchProgressClient.getRecentlyWatched = { _ in [] }
             $0.vodListClient.fetchVodItemsByIDs = { _ in [movie] }
             $0.channelListClient.fetchFavorites = { [channel] }
             $0.epgClient.fetchNowPlayingBatch = { _ in [:] }
@@ -99,6 +101,7 @@ final class HomeFeatureTests: XCTestCase {
             HomeFeature()
         } withDependencies: {
             $0.watchProgressClient.getUnfinished = { _ in [] }
+            $0.watchProgressClient.getRecentlyWatched = { _ in [] }
             $0.channelListClient.fetchFavorites = { [channel] }
             $0.epgClient.fetchNowPlayingBatch = { _ in [:] }
         }
@@ -125,6 +128,7 @@ final class HomeFeatureTests: XCTestCase {
             HomeFeature()
         } withDependencies: {
             $0.watchProgressClient.getUnfinished = { _ in [progressRecord] }
+            $0.watchProgressClient.getRecentlyWatched = { _ in [] }
             $0.vodListClient.fetchVodItemsByIDs = { _ in [movie] }
             $0.channelListClient.fetchFavorites = { [] }
         }
@@ -150,6 +154,7 @@ final class HomeFeatureTests: XCTestCase {
             HomeFeature()
         } withDependencies: {
             $0.watchProgressClient.getUnfinished = { _ in [] }
+            $0.watchProgressClient.getRecentlyWatched = { _ in [] }
             $0.channelListClient.fetchFavorites = { [] }
         }
         store.exhaustivity = .off
@@ -176,6 +181,7 @@ final class HomeFeatureTests: XCTestCase {
             HomeFeature()
         } withDependencies: {
             $0.watchProgressClient.getUnfinished = { _ in [] }
+            $0.watchProgressClient.getRecentlyWatched = { _ in [] }
             $0.channelListClient.fetchFavorites = { [] }
         }
         store.exhaustivity = .off
@@ -205,6 +211,7 @@ final class HomeFeatureTests: XCTestCase {
             HomeFeature()
         } withDependencies: {
             $0.watchProgressClient.getUnfinished = { _ in [progressRecord] }
+            $0.watchProgressClient.getRecentlyWatched = { _ in [] }
             $0.vodListClient.fetchVodItemsByIDs = { _ in [movie] }
             $0.channelListClient.fetchFavorites = { [] }
         }
@@ -233,6 +240,7 @@ final class HomeFeatureTests: XCTestCase {
             HomeFeature()
         } withDependencies: {
             $0.watchProgressClient.getUnfinished = { _ in [progress1, progress2] }
+            $0.watchProgressClient.getRecentlyWatched = { _ in [] }
             $0.vodListClient.fetchVodItemsByIDs = { _ in [movie] }
             $0.channelListClient.fetchFavorites = { [] }
         }
@@ -354,6 +362,7 @@ final class HomeFeatureTests: XCTestCase {
             HomeFeature()
         } withDependencies: {
             $0.watchProgressClient.getUnfinished = { _ in [] }
+            $0.watchProgressClient.getRecentlyWatched = { _ in [] }
             $0.channelListClient.fetchFavorites = { [] }
         }
         store.exhaustivity = .off
@@ -362,5 +371,157 @@ final class HomeFeatureTests: XCTestCase {
             $0.isLoading = true
         }
         await store.skipReceivedActions()
+    }
+
+    // MARK: - Recently Watched Channels
+
+    func testOnAppear_loadsRecentChannels() async {
+        let channel1 = makeChannel(id: "ch-1", name: "ESPN")
+        let channel2 = makeChannel(id: "ch-2", name: "CNN")
+        let progress1 = WatchProgressRecord(
+            contentID: "ch-1", positionMs: 5000, durationMs: nil, updatedAt: 1_700_000_200
+        )
+        let progress2 = WatchProgressRecord(
+            contentID: "ch-2", positionMs: 3000, durationMs: nil, updatedAt: 1_700_000_100
+        )
+
+        let store = TestStore(initialState: HomeFeature.State()) {
+            HomeFeature()
+        } withDependencies: {
+            $0.watchProgressClient.getUnfinished = { _ in [] }
+            $0.watchProgressClient.getRecentlyWatched = { _ in [progress1, progress2] }
+            $0.channelListClient.fetchFavorites = { [] }
+            $0.channelListClient.fetchByIDs = { _ in [channel1, channel2] }
+            $0.epgClient.fetchNowPlayingBatch = { _ in [:] }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.onAppear) {
+            $0.isLoading = true
+        }
+
+        await store.skipReceivedActions()
+
+        store.assert {
+            $0.recentChannels = [channel1, channel2]
+        }
+    }
+
+    func testRecentChannelsLoaded_populatesState() async {
+        let channel = makeChannel(id: "ch-1", name: "ESPN")
+
+        let store = TestStore(initialState: HomeFeature.State()) {
+            HomeFeature()
+        } withDependencies: {
+            $0.epgClient.fetchNowPlayingBatch = { _ in [:] }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.recentChannelsLoaded(.success([channel]))) {
+            $0.recentChannels = [channel]
+        }
+        await store.skipReceivedActions()
+    }
+
+    func testRecentChannelsLoaded_failure_staysEmpty() async {
+        let store = TestStore(initialState: HomeFeature.State()) {
+            HomeFeature()
+        }
+
+        await store.send(.recentChannelsLoaded(.failure(NSError(domain: "test", code: 1))))
+    }
+
+    func testRecentChannelTapped_presentsPlayer() async {
+        let channel = makeChannel(id: "ch-1", name: "ESPN")
+
+        let store = TestStore(initialState: HomeFeature.State()) {
+            HomeFeature()
+        }
+
+        await store.send(.recentChannelTapped(channel)) {
+            $0.videoPlayer = VideoPlayerFeature.State(channel: channel)
+        }
+        await store.receive(\.delegate.playChannel)
+    }
+
+    func testRecentChannelTapped_sendsDelegate() async {
+        let channel = makeChannel(id: "ch-1", name: "ESPN")
+
+        let store = TestStore(initialState: HomeFeature.State()) {
+            HomeFeature()
+        }
+
+        await store.send(.recentChannelTapped(channel)) {
+            $0.videoPlayer = VideoPlayerFeature.State(channel: channel)
+        }
+        await store.receive(\.delegate.playChannel)
+    }
+
+    func testOnAppear_recentChannels_excludesVOD() async {
+        // Progress records include both channel and VOD content IDs,
+        // but fetchByIDs only returns channel records (VOD IDs won't match)
+        let channel = makeChannel(id: "ch-1", name: "ESPN")
+        let progressChannel = WatchProgressRecord(
+            contentID: "ch-1", positionMs: 5000, durationMs: nil, updatedAt: 1_700_000_200
+        )
+        let progressVod = WatchProgressRecord(
+            contentID: "vod-1", positionMs: 60000, durationMs: 120000, updatedAt: 1_700_000_300
+        )
+
+        let store = TestStore(initialState: HomeFeature.State()) {
+            HomeFeature()
+        } withDependencies: {
+            $0.watchProgressClient.getUnfinished = { _ in [] }
+            $0.watchProgressClient.getRecentlyWatched = { _ in [progressVod, progressChannel] }
+            $0.channelListClient.fetchFavorites = { [] }
+            $0.channelListClient.fetchByIDs = { _ in [channel] }
+            $0.epgClient.fetchNowPlayingBatch = { _ in [:] }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.onAppear) {
+            $0.isLoading = true
+        }
+
+        await store.skipReceivedActions()
+
+        // Only the channel shows up — VOD ID "vod-1" has no matching ChannelRecord
+        store.assert {
+            $0.recentChannels = [channel]
+        }
+    }
+
+    func testOnAppear_recentChannels_preservesOrder() async {
+        let channel1 = makeChannel(id: "ch-1", name: "ESPN")
+        let channel2 = makeChannel(id: "ch-2", name: "CNN")
+        // ch-2 is more recent (higher updatedAt)
+        let progress1 = WatchProgressRecord(
+            contentID: "ch-2", positionMs: 3000, durationMs: nil, updatedAt: 1_700_000_200
+        )
+        let progress2 = WatchProgressRecord(
+            contentID: "ch-1", positionMs: 5000, durationMs: nil, updatedAt: 1_700_000_100
+        )
+
+        let store = TestStore(initialState: HomeFeature.State()) {
+            HomeFeature()
+        } withDependencies: {
+            $0.watchProgressClient.getUnfinished = { _ in [] }
+            $0.watchProgressClient.getRecentlyWatched = { _ in [progress1, progress2] }
+            $0.channelListClient.fetchFavorites = { [] }
+            $0.channelListClient.fetchByIDs = { _ in [channel1, channel2] }
+            $0.epgClient.fetchNowPlayingBatch = { _ in [:] }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.onAppear) {
+            $0.isLoading = true
+        }
+
+        await store.skipReceivedActions()
+
+        // Order follows progress records: ch-2 first (most recent), then ch-1
+        store.assert {
+            $0.recentChannels = [channel2, channel1]
+        }
     }
 }

@@ -166,6 +166,7 @@ final class AppFeatureTests: XCTestCase {
             AppFeature()
         } withDependencies: {
             $0.watchProgressClient.getUnfinished = { _ in [] }
+            $0.watchProgressClient.getRecentlyWatched = { _ in [] }
             $0.channelListClient.fetchFavorites = { [] }
         }
         store.exhaustivity = .off
