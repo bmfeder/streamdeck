@@ -232,7 +232,7 @@ public struct AppView: View {
                 SettingsView(store: store.scope(state: \.settings, action: \.settings))
             }
         }
-        #if os(tvOS) || os(iOS)
+        #if os(tvOS)
         .tabViewStyle(.sidebarAdaptable)
         #endif
     }
