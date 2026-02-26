@@ -8,6 +8,7 @@ public struct VideoPlayerFeature {
     @ObservableState
     public struct State: Equatable, Sendable {
         public var item: PlayableItem
+        public var isLiveChannel: Bool
         public var status: PlaybackStatus = .idle
         public var activeEngine: PlayerEngine?
         public var streamRoute: StreamRoute?
@@ -21,18 +22,26 @@ public struct VideoPlayerFeature {
         public var currentPositionMs: Int = 0
         public var currentDurationMs: Int?
 
+        // Channel switcher
+        public var isSwitcherVisible: Bool = false
+        public var switcherChannels: [ChannelRecord] = []
+        public var switcherNowPlaying: [String: String] = [:]
+
         public static let maxRetriesPerEngine: Int = 3
 
         public init(channel: ChannelRecord) {
             self.item = PlayableItem(channel: channel)
+            self.isLiveChannel = true
         }
 
         public init(vodItem: VodItemRecord) {
             self.item = PlayableItem(vodItem: vodItem)
+            self.isLiveChannel = false
         }
 
-        public init(item: PlayableItem) {
+        public init(item: PlayableItem, isLiveChannel: Bool = false) {
             self.item = item
+            self.isLiveChannel = isLiveChannel
         }
     }
 
@@ -52,16 +61,26 @@ public struct VideoPlayerFeature {
         case progressLoaded(WatchProgressRecord?)
         case timeUpdated(positionMs: Int, durationMs: Int?)
         case saveProgress
+        // Channel switcher
+        case showSwitcher
+        case hideSwitcher
+        case switcherChannelsLoaded(Result<[ChannelRecord], Error>)
+        case switcherEPGLoaded(Result<[String: String], Error>)
+        case switcherChannelSelected(ChannelRecord)
+        case switcherAutoHideExpired
         case delegate(Delegate)
 
         @CasePathable
         public enum Delegate: Sendable, Equatable {
             case dismissed
+            case channelSwitched(ChannelRecord)
         }
     }
 
     @Dependency(\.streamRouterClient) var streamRouterClient
     @Dependency(\.watchProgressClient) var watchProgressClient
+    @Dependency(\.channelListClient) var channelListClient
+    @Dependency(\.epgClient) var epgClient
     @Dependency(\.continuousClock) var clock
     @Dependency(\.dismiss) var dismiss
 
@@ -71,6 +90,7 @@ public struct VideoPlayerFeature {
         case overlayTimer
         case retryTimer
         case progressTimer
+        case switcherTimer
     }
 
     public var body: some ReducerOf<Self> {
@@ -106,7 +126,8 @@ public struct VideoPlayerFeature {
                     saveEffect,
                     .cancel(id: CancelID.overlayTimer),
                     .cancel(id: CancelID.retryTimer),
-                    .cancel(id: CancelID.progressTimer)
+                    .cancel(id: CancelID.progressTimer),
+                    .cancel(id: CancelID.switcherTimer)
                 )
 
             case .dismissTapped:
@@ -239,6 +260,87 @@ public struct VideoPlayerFeature {
             case .saveProgress:
                 return saveProgressEffect(state: state)
 
+            // MARK: - Channel Switcher
+
+            case .showSwitcher:
+                guard state.isLiveChannel else { return .none }
+                state.isSwitcherVisible = true
+                state.isOverlayVisible = false
+                let client = channelListClient
+                return .merge(
+                    .cancel(id: CancelID.overlayTimer),
+                    .run { send in
+                        let favorites = try await client.fetchFavorites()
+                        await send(.switcherChannelsLoaded(.success(favorites)))
+                    } catch: { error, send in
+                        await send(.switcherChannelsLoaded(.failure(error)))
+                    },
+                    startSwitcherTimer()
+                )
+
+            case .hideSwitcher:
+                state.isSwitcherVisible = false
+                state.switcherChannels = []
+                state.switcherNowPlaying = [:]
+                return .cancel(id: CancelID.switcherTimer)
+
+            case let .switcherChannelsLoaded(.success(channels)):
+                state.switcherChannels = channels
+                let epgIDs = channels.compactMap { $0.epgID ?? $0.tvgID }
+                guard !epgIDs.isEmpty else { return .none }
+                let epg = epgClient
+                return .run { send in
+                    let programs = try await epg.fetchNowPlayingBatch(epgIDs)
+                    let nowPlaying = programs.mapValues { $0.title }
+                    await send(.switcherEPGLoaded(.success(nowPlaying)))
+                } catch: { error, send in
+                    await send(.switcherEPGLoaded(.failure(error)))
+                }
+
+            case .switcherChannelsLoaded(.failure):
+                return .none
+
+            case let .switcherEPGLoaded(.success(nowPlaying)):
+                state.switcherNowPlaying = nowPlaying
+                return .none
+
+            case .switcherEPGLoaded(.failure):
+                return .none
+
+            case let .switcherChannelSelected(channel):
+                guard channel.id != state.item.contentID else {
+                    return .send(.hideSwitcher)
+                }
+                let saveEffect = saveProgressEffect(state: state)
+                // Reset playback state for new channel
+                state.item = PlayableItem(channel: channel)
+                state.status = .idle
+                state.activeEngine = nil
+                state.streamRoute = nil
+                state.playerCommand = .stop
+                state.retryCount = 0
+                state.hasTriedFallbackEngine = false
+                state.resumePositionMs = nil
+                state.currentPositionMs = 0
+                state.currentDurationMs = nil
+                state.isSwitcherVisible = false
+                state.switcherChannels = []
+                state.switcherNowPlaying = [:]
+                return .merge(
+                    saveEffect,
+                    .cancel(id: CancelID.switcherTimer),
+                    .cancel(id: CancelID.retryTimer),
+                    .cancel(id: CancelID.progressTimer),
+                    .send(.delegate(.channelSwitched(channel))),
+                    .send(.onAppear)
+                )
+
+            case .switcherAutoHideExpired:
+                state.isSwitcherVisible = false
+                state.switcherChannels = []
+                state.switcherNowPlaying = [:]
+                return .none
+
             case .delegate:
                 return .none
             }
@@ -279,6 +381,15 @@ public struct VideoPlayerFeature {
             }
         }
         .cancellable(id: CancelID.progressTimer, cancelInFlight: true)
+    }
+
+    private func startSwitcherTimer() -> Effect<Action> {
+        let switcherClock = clock
+        return .run { send in
+            try await switcherClock.sleep(for: .seconds(5))
+            await send(.switcherAutoHideExpired)
+        }
+        .cancellable(id: CancelID.switcherTimer, cancelInFlight: true)
     }
 
     private func saveProgressEffect(state: State) -> Effect<Action> {

@@ -543,4 +543,23 @@ final class LiveTVFeatureTests: XCTestCase {
         await store.skipReceivedActions()
         XCTAssertTrue(loadCalled.value)
     }
+
+    // MARK: - Channel Switcher Delegate
+
+    func testChannelSwitched_updatesFocusedChannel() async {
+        let channel = makeChannel(id: "ch-1", name: "CNN")
+        var state = LiveTVFeature.State()
+        state.videoPlayer = VideoPlayerFeature.State(channel: channel)
+        state.focusedChannelID = "ch-old"
+
+        let newChannel = makeChannel(id: "ch-2", name: "BBC")
+
+        let store = TestStore(initialState: state) {
+            LiveTVFeature()
+        }
+
+        await store.send(.videoPlayer(.presented(.delegate(.channelSwitched(newChannel))))) {
+            $0.focusedChannelID = "ch-2"
+        }
+    }
 }

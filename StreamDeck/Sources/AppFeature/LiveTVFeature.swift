@@ -71,6 +71,10 @@ public struct LiveTVFeature {
                 state.videoPlayer = nil
                 return .none
 
+            case let .videoPlayer(.presented(.delegate(.channelSwitched(channel)))):
+                state.focusedChannelID = channel.id
+                return .none
+
             case .videoPlayer:
                 return .none
             case .onAppear:

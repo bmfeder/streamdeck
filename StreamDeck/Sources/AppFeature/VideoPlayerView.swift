@@ -20,11 +20,29 @@ public struct VideoPlayerView: View {
             }
 
             statusOverlay
+
+            if store.isSwitcherVisible {
+                switcherOverlay
+            }
         }
         .onAppear { store.send(.onAppear) }
         .onDisappear { store.send(.onDisappear) }
         #if os(tvOS)
         .onPlayPauseCommand { store.send(.toggleOverlayTapped) }
+        .onMoveCommand { direction in
+            switch direction {
+            case .down:
+                if store.isLiveChannel && !store.isSwitcherVisible {
+                    store.send(.showSwitcher)
+                }
+            case .up:
+                if store.isSwitcherVisible {
+                    store.send(.hideSwitcher)
+                }
+            default:
+                break
+            }
+        }
         #endif
     }
 
@@ -224,6 +242,113 @@ public struct VideoPlayerView: View {
         case .networkLost: return "Network connection lost."
         case .decodingFailed: return "Unable to decode this stream format."
         case let .unknown(msg): return msg
+        }
+    }
+
+    // MARK: - Channel Switcher
+
+    #if os(tvOS)
+    private let switcherTileWidth: CGFloat = 160
+    private let switcherTileHeight: CGFloat = 96
+    #else
+    private let switcherTileWidth: CGFloat = 100
+    private let switcherTileHeight: CGFloat = 60
+    #endif
+
+    private var switcherOverlay: some View {
+        VStack {
+            Spacer()
+
+            VStack(spacing: 12) {
+                HStack {
+                    Text("Now: \(store.item.name)")
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.8))
+                    Spacer()
+                    Text("Favorites")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.5))
+                }
+                .padding(.horizontal, 40)
+
+                if store.switcherChannels.isEmpty {
+                    Text("No favorite channels")
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.5))
+                        .frame(height: switcherTileHeight)
+                } else {
+                    switcherChannelRow
+                }
+            }
+            .padding(.vertical, 16)
+            .background(
+                LinearGradient(
+                    colors: [.clear, .black.opacity(0.85)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+        }
+    }
+
+    private var switcherChannelRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 16) {
+                ForEach(store.switcherChannels, id: \.id) { channel in
+                    Button {
+                        store.send(.switcherChannelSelected(channel))
+                    } label: {
+                        switcherTile(channel: channel)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 40)
+        }
+    }
+
+    private func switcherTile(channel: ChannelRecord) -> some View {
+        let isCurrent = channel.id == store.item.contentID
+        let nowPlaying = store.switcherNowPlaying[channel.epgID ?? ""]
+            ?? store.switcherNowPlaying[channel.tvgID ?? ""]
+        return VStack(spacing: 4) {
+            ZStack {
+                Color.white.opacity(0.1)
+                if let logoURLString = channel.logoURL,
+                   let logoURL = URL(string: logoURLString) {
+                    AsyncImage(url: logoURL) { phase in
+                        if let image = phase.image {
+                            image.resizable().aspectRatio(contentMode: .fit)
+                        } else {
+                            Image(systemName: "tv")
+                                .foregroundStyle(.white.opacity(0.3))
+                        }
+                    }
+                } else {
+                    Image(systemName: "tv")
+                        .foregroundStyle(.white.opacity(0.3))
+                }
+            }
+            .frame(width: switcherTileWidth, height: switcherTileHeight)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(isCurrent ? Color.accentColor : Color.clear, lineWidth: 3)
+            )
+
+            Text(channel.name)
+                .font(.caption)
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .frame(width: switcherTileWidth)
+
+            if let nowPlaying {
+                Text(nowPlaying)
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.6))
+                    .lineLimit(1)
+                    .frame(width: switcherTileWidth)
+            }
         }
     }
 

@@ -667,4 +667,257 @@ final class VideoPlayerFeatureTests: XCTestCase {
         XCTAssertEqual(result?.0, "ch-1")
         XCTAssertEqual(result?.1, 120_000)
     }
+
+    // MARK: - Channel Switcher: Initial State
+
+    func testInitialState_channel_isLiveChannelTrue() {
+        let state = VideoPlayerFeature.State(channel: makeChannel())
+        XCTAssertTrue(state.isLiveChannel)
+        XCTAssertFalse(state.isSwitcherVisible)
+        XCTAssertTrue(state.switcherChannels.isEmpty)
+    }
+
+    func testInitialState_vod_isLiveChannelFalse() {
+        let vod = VodItemRecord(
+            id: "m1", playlistID: "pl-1", title: "Movie", type: "movie",
+            streamURL: "http://example.com/movie.mp4"
+        )
+        let state = VideoPlayerFeature.State(vodItem: vod)
+        XCTAssertFalse(state.isLiveChannel)
+    }
+
+    // MARK: - Channel Switcher: Show/Hide
+
+    func testShowSwitcher_liveChannel_showsAndLoadsFavorites() async {
+        let favorites = [
+            makeChannel(id: "ch-2", name: "CNN"),
+            makeChannel(id: "ch-3", name: "BBC"),
+        ]
+
+        let store = makeStore()
+        store.exhaustivity = .off
+
+        // Need to provide channelListClient and epgClient
+        store.dependencies.channelListClient.fetchFavorites = { favorites }
+        store.dependencies.epgClient.fetchNowPlayingBatch = { _ in [:] }
+
+        await store.send(.showSwitcher) {
+            $0.isSwitcherVisible = true
+            $0.isOverlayVisible = false
+        }
+
+        await store.receive(\.switcherChannelsLoaded.success) {
+            $0.switcherChannels = favorites
+        }
+
+        await store.skipReceivedActions()
+    }
+
+    func testShowSwitcher_vodItem_noOp() async {
+        let vod = VodItemRecord(
+            id: "m1", playlistID: "pl-1", title: "Movie", type: "movie",
+            streamURL: "http://example.com/movie.mp4"
+        )
+        let store = TestStore(initialState: VideoPlayerFeature.State(vodItem: vod)) {
+            VideoPlayerFeature()
+        }
+
+        await store.send(.showSwitcher)
+    }
+
+    func testHideSwitcher_resetsState() async {
+        var state = VideoPlayerFeature.State(channel: makeChannel())
+        state.isSwitcherVisible = true
+        state.switcherChannels = [makeChannel(id: "ch-2")]
+        state.switcherNowPlaying = ["epg-1": "Live News"]
+
+        let store = TestStore(initialState: state) {
+            VideoPlayerFeature()
+        }
+
+        await store.send(.hideSwitcher) {
+            $0.isSwitcherVisible = false
+            $0.switcherChannels = []
+            $0.switcherNowPlaying = [:]
+        }
+    }
+
+    func testSwitcherAutoHide_hidesAfterTimeout() async {
+        var state = VideoPlayerFeature.State(channel: makeChannel())
+        state.isSwitcherVisible = true
+        state.switcherChannels = [makeChannel(id: "ch-2")]
+
+        let store = TestStore(initialState: state) {
+            VideoPlayerFeature()
+        }
+
+        await store.send(.switcherAutoHideExpired) {
+            $0.isSwitcherVisible = false
+            $0.switcherChannels = []
+            $0.switcherNowPlaying = [:]
+        }
+    }
+
+    // MARK: - Channel Switcher: Channel Loading
+
+    func testSwitcherChannelsLoaded_success_populatesChannels() async {
+        let channels = [
+            makeChannel(id: "ch-2", name: "CNN"),
+            makeChannel(id: "ch-3", name: "BBC"),
+        ]
+
+        var state = VideoPlayerFeature.State(channel: makeChannel())
+        state.isSwitcherVisible = true
+
+        let store = TestStore(initialState: state) {
+            VideoPlayerFeature()
+        } withDependencies: {
+            $0.epgClient.fetchNowPlayingBatch = { _ in [:] }
+        }
+
+        await store.send(.switcherChannelsLoaded(.success(channels))) {
+            $0.switcherChannels = channels
+        }
+    }
+
+    func testSwitcherChannelsLoaded_failure_noStateChange() async {
+        var state = VideoPlayerFeature.State(channel: makeChannel())
+        state.isSwitcherVisible = true
+
+        let store = TestStore(initialState: state) {
+            VideoPlayerFeature()
+        }
+
+        await store.send(.switcherChannelsLoaded(.failure(NSError(domain: "test", code: 1))))
+    }
+
+    func testSwitcherEPGLoaded_success_populatesNowPlaying() async {
+        var state = VideoPlayerFeature.State(channel: makeChannel())
+        state.isSwitcherVisible = true
+        state.switcherChannels = [makeChannel(id: "ch-2")]
+
+        let store = TestStore(initialState: state) {
+            VideoPlayerFeature()
+        }
+
+        await store.send(.switcherEPGLoaded(.success(["epg-1": "Live News"]))) {
+            $0.switcherNowPlaying = ["epg-1": "Live News"]
+        }
+    }
+
+    // MARK: - Channel Switcher: Channel Selection
+
+    func testSwitcherChannelSelected_sameChannel_justCloses() async {
+        let currentChannel = makeChannel(id: "ch-1")
+        var state = VideoPlayerFeature.State(channel: currentChannel)
+        state.isSwitcherVisible = true
+        state.switcherChannels = [currentChannel, makeChannel(id: "ch-2")]
+
+        let store = TestStore(initialState: state) {
+            VideoPlayerFeature()
+        }
+
+        await store.send(.switcherChannelSelected(currentChannel))
+        await store.receive(\.hideSwitcher) {
+            $0.isSwitcherVisible = false
+            $0.switcherChannels = []
+            $0.switcherNowPlaying = [:]
+        }
+    }
+
+    func testSwitcherChannelSelected_differentChannel_switchesPlayback() async {
+        let currentChannel = makeChannel(id: "ch-1", name: "Old Channel")
+        let newChannel = makeChannel(id: "ch-2", name: "New Channel", streamURL: "http://example.com/new.m3u8")
+        let url = URL(string: "http://example.com/new.m3u8")!
+        let expectedRoute = StreamRoute(recommendedEngine: .avPlayer, url: url, reason: "test")
+
+        var state = VideoPlayerFeature.State(channel: currentChannel)
+        state.status = .playing
+        state.isSwitcherVisible = true
+        state.switcherChannels = [currentChannel, newChannel]
+
+        let store = TestStore(initialState: state) {
+            VideoPlayerFeature()
+        } withDependencies: {
+            $0.streamRouterClient.route = { _ in expectedRoute }
+            $0.continuousClock = ImmediateClock()
+            $0.watchProgressClient.getProgress = { _ in nil }
+            $0.watchProgressClient.saveProgress = { _, _, _, _ in }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.switcherChannelSelected(newChannel)) {
+            $0.item = PlayableItem(channel: newChannel)
+            $0.status = .idle
+            $0.activeEngine = nil
+            $0.streamRoute = nil
+            $0.playerCommand = .stop
+            $0.retryCount = 0
+            $0.hasTriedFallbackEngine = false
+            $0.resumePositionMs = nil
+            $0.currentPositionMs = 0
+            $0.currentDurationMs = nil
+            $0.isSwitcherVisible = false
+            $0.switcherChannels = []
+            $0.switcherNowPlaying = [:]
+        }
+
+        await store.receive(\.delegate.channelSwitched)
+
+        await store.receive(\.onAppear) {
+            $0.status = .routing
+        }
+
+        await store.skipReceivedActions()
+    }
+
+    func testSwitcherChannelSelected_savesProgressBeforeSwitch() async {
+        let currentChannel = makeChannel(id: "ch-1")
+        let newChannel = makeChannel(id: "ch-2", name: "New", streamURL: "http://example.com/new.m3u8")
+
+        var state = VideoPlayerFeature.State(channel: currentChannel)
+        state.status = .playing
+        state.currentPositionMs = 60_000
+        state.currentDurationMs = 3_600_000
+        state.isSwitcherVisible = true
+
+        let saved = LockIsolated<(String, Int)?>(nil)
+        let url = URL(string: "http://example.com/new.m3u8")!
+
+        let store = TestStore(initialState: state) {
+            VideoPlayerFeature()
+        } withDependencies: {
+            $0.streamRouterClient.route = { _ in
+                StreamRoute(recommendedEngine: .avPlayer, url: url, reason: "test")
+            }
+            $0.continuousClock = ImmediateClock()
+            $0.watchProgressClient.getProgress = { _ in nil }
+            $0.watchProgressClient.saveProgress = { contentID, _, positionMs, _ in
+                saved.setValue((contentID, positionMs))
+            }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.switcherChannelSelected(newChannel)) {
+            $0.item = PlayableItem(channel: newChannel)
+            $0.status = .idle
+            $0.activeEngine = nil
+            $0.streamRoute = nil
+            $0.playerCommand = .stop
+            $0.retryCount = 0
+            $0.hasTriedFallbackEngine = false
+            $0.resumePositionMs = nil
+            $0.currentPositionMs = 0
+            $0.currentDurationMs = nil
+            $0.isSwitcherVisible = false
+            $0.switcherChannels = []
+            $0.switcherNowPlaying = [:]
+        }
+
+        await store.skipReceivedActions()
+
+        let result = saved.value
+        XCTAssertEqual(result?.0, "ch-1")
+        XCTAssertEqual(result?.1, 60_000)
+    }
 }

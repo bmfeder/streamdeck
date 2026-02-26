@@ -186,4 +186,23 @@ final class FavoritesFeatureTests: XCTestCase {
             $0.channels = []
         }
     }
+
+    // MARK: - Channel Switcher Delegate
+
+    func testChannelSwitched_updatesFocusedChannel() async {
+        let channel = makeChannel(id: "ch-1", name: "CNN")
+        var state = FavoritesFeature.State()
+        state.videoPlayer = VideoPlayerFeature.State(channel: channel)
+        state.focusedChannelID = "ch-old"
+
+        let newChannel = makeChannel(id: "ch-2", name: "BBC")
+
+        let store = TestStore(initialState: state) {
+            FavoritesFeature()
+        }
+
+        await store.send(.videoPlayer(.presented(.delegate(.channelSwitched(newChannel))))) {
+            $0.focusedChannelID = "ch-2"
+        }
+    }
 }
