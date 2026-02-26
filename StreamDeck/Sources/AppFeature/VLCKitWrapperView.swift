@@ -7,6 +7,9 @@ import VLCKitSPM
 struct VLCKitWrapperView: UIViewRepresentable {
     let url: URL
     let initialSeekMs: Int?
+    let playPauseToggleCount: Int
+    let seekToggleCount: Int
+    let seekTargetMs: Int?
     let onStatusChange: @Sendable (PlaybackStatus) -> Void
     let onError: @Sendable (PlayerError) -> Void
     let onTimeUpdate: @Sendable (Int, Int?) -> Void
@@ -14,12 +17,18 @@ struct VLCKitWrapperView: UIViewRepresentable {
     init(
         url: URL,
         initialSeekMs: Int? = nil,
+        playPauseToggleCount: Int = 0,
+        seekToggleCount: Int = 0,
+        seekTargetMs: Int? = nil,
         onStatusChange: @escaping @Sendable (PlaybackStatus) -> Void,
         onError: @escaping @Sendable (PlayerError) -> Void,
         onTimeUpdate: @escaping @Sendable (Int, Int?) -> Void = { _, _ in }
     ) {
         self.url = url
         self.initialSeekMs = initialSeekMs
+        self.playPauseToggleCount = playPauseToggleCount
+        self.seekToggleCount = seekToggleCount
+        self.seekTargetMs = seekTargetMs
         self.onStatusChange = onStatusChange
         self.onError = onError
         self.onTimeUpdate = onTimeUpdate
@@ -54,6 +63,20 @@ struct VLCKitWrapperView: UIViewRepresentable {
             context.coordinator.hasPerformedInitialSeek = false
             player.play()
         }
+        // Play/pause toggle
+        if context.coordinator.lastPlayPauseToggle != playPauseToggleCount {
+            context.coordinator.lastPlayPauseToggle = playPauseToggleCount
+            if player.isPlaying {
+                player.pause()
+            } else {
+                player.play()
+            }
+        }
+        // Seek
+        if context.coordinator.lastSeekToggle != seekToggleCount, let targetMs = seekTargetMs {
+            context.coordinator.lastSeekToggle = seekToggleCount
+            player.time = VLCTime(int: Int32(targetMs))
+        }
     }
 
     static func dismantleUIView(_ view: UIView, coordinator: Coordinator) {
@@ -69,6 +92,8 @@ struct VLCKitWrapperView: UIViewRepresentable {
         nonisolated(unsafe) var initialSeekMs: Int?
         nonisolated(unsafe) var hasPerformedInitialSeek: Bool = false
         nonisolated(unsafe) var lastReportedTimeMs: Int = 0
+        nonisolated(unsafe) var lastPlayPauseToggle: Int = 0
+        nonisolated(unsafe) var lastSeekToggle: Int = 0
 
         let onStatusChange: @Sendable (PlaybackStatus) -> Void
         let onError: @Sendable (PlayerError) -> Void

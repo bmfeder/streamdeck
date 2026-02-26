@@ -162,7 +162,6 @@ final class VideoPlayerFeatureTests: XCTestCase {
             $0.playerCommand = .play(url: url, engine: .vlcKit)
         }
 
-        await store.receive(\.overlayAutoHideExpired)
         await store.skipReceivedActions()
     }
 

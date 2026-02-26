@@ -36,6 +36,7 @@ public struct VideoPlayerView: View {
         .onAppear { store.send(.onAppear) }
         .onDisappear { store.send(.onDisappear) }
         #if os(tvOS)
+        .onPlayPauseCommand { store.send(.playPauseTapped) }
         .onMoveCommand { direction in
             switch direction {
             case .down:
@@ -68,6 +69,9 @@ public struct VideoPlayerView: View {
                 AVPlayerWrapperView(
                     url: url,
                     initialSeekMs: store.resumePositionMs,
+                    playPauseToggleCount: store.playPauseToggleCount,
+                    seekToggleCount: store.seekToggleCount,
+                    seekTargetMs: store.seekTargetMs,
                     onStatusChange: { status in
                         store.send(.playerStatusChanged(status))
                     },
@@ -87,6 +91,9 @@ public struct VideoPlayerView: View {
                 VLCKitWrapperView(
                     url: url,
                     initialSeekMs: store.resumePositionMs,
+                    playPauseToggleCount: store.playPauseToggleCount,
+                    seekToggleCount: store.seekToggleCount,
+                    seekTargetMs: store.seekTargetMs,
                     onStatusChange: { status in
                         store.send(.playerStatusChanged(status))
                     },
@@ -138,6 +145,11 @@ public struct VideoPlayerView: View {
 
             Spacer()
 
+            // Transport controls
+            transportControls
+
+            Spacer()
+
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(store.item.name)
@@ -160,6 +172,40 @@ public struct VideoPlayerView: View {
                 )
             )
         }
+    }
+
+    private var transportControls: some View {
+        HStack(spacing: 40) {
+            Button {
+                store.send(.seekBackwardTapped)
+            } label: {
+                Image(systemName: "gobackward.10")
+                    .font(.system(size: 32))
+                    .foregroundStyle(.white)
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                store.send(.playPauseTapped)
+            } label: {
+                Image(systemName: store.status == .playing ? "pause.fill" : "play.fill")
+                    .font(.system(size: 44))
+                    .foregroundStyle(.white)
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                store.send(.seekForwardTapped)
+            } label: {
+                Image(systemName: "goforward.10")
+                    .font(.system(size: 32))
+                    .foregroundStyle(.white)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(20)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
     // MARK: - Status Overlay

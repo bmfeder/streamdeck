@@ -7,6 +7,9 @@ import SwiftUI
 struct AVPlayerWrapperView: UIViewControllerRepresentable {
     let url: URL
     let initialSeekMs: Int?
+    let playPauseToggleCount: Int
+    let seekToggleCount: Int
+    let seekTargetMs: Int?
     let onStatusChange: @Sendable (PlaybackStatus) -> Void
     let onError: @Sendable (PlayerError) -> Void
     let onTimeUpdate: @Sendable (Int, Int?) -> Void
@@ -14,12 +17,18 @@ struct AVPlayerWrapperView: UIViewControllerRepresentable {
     init(
         url: URL,
         initialSeekMs: Int? = nil,
+        playPauseToggleCount: Int = 0,
+        seekToggleCount: Int = 0,
+        seekTargetMs: Int? = nil,
         onStatusChange: @escaping @Sendable (PlaybackStatus) -> Void,
         onError: @escaping @Sendable (PlayerError) -> Void,
         onTimeUpdate: @escaping @Sendable (Int, Int?) -> Void = { _, _ in }
     ) {
         self.url = url
         self.initialSeekMs = initialSeekMs
+        self.playPauseToggleCount = playPauseToggleCount
+        self.seekToggleCount = seekToggleCount
+        self.seekTargetMs = seekTargetMs
         self.onStatusChange = onStatusChange
         self.onError = onError
         self.onTimeUpdate = onTimeUpdate
@@ -50,6 +59,24 @@ struct AVPlayerWrapperView: UIViewControllerRepresentable {
             context.coordinator.setupObservers(player: player)
             player.play()
         }
+        // Play/pause toggle
+        if let player = context.coordinator.player,
+           context.coordinator.lastPlayPauseToggle != playPauseToggleCount {
+            context.coordinator.lastPlayPauseToggle = playPauseToggleCount
+            if player.rate == 0 {
+                player.play()
+            } else {
+                player.pause()
+            }
+        }
+        // Seek
+        if let player = context.coordinator.player,
+           context.coordinator.lastSeekToggle != seekToggleCount,
+           let targetMs = seekTargetMs {
+            context.coordinator.lastSeekToggle = seekToggleCount
+            let seekTime = CMTime(value: CMTimeValue(targetMs), timescale: 1000)
+            player.seek(to: seekTime)
+        }
     }
 
     static func dismantleUIViewController(_ controller: AVPlayerViewController, coordinator: Coordinator) {
@@ -70,6 +97,8 @@ struct AVPlayerWrapperView: UIViewControllerRepresentable {
         nonisolated(unsafe) var periodicTimeObserver: Any?
         nonisolated(unsafe) var initialSeekMs: Int?
         nonisolated(unsafe) var hasPerformedInitialSeek: Bool = false
+        nonisolated(unsafe) var lastPlayPauseToggle: Int = 0
+        nonisolated(unsafe) var lastSeekToggle: Int = 0
 
         let onStatusChange: @Sendable (PlaybackStatus) -> Void
         let onError: @Sendable (PlayerError) -> Void

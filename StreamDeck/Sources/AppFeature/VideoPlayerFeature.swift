@@ -40,6 +40,11 @@ public struct VideoPlayerFeature {
         // Buffering feedback
         public var bufferingElapsedSeconds: Int = 0
 
+        // Transport controls (toggle counters to signal wrappers without feedback loops)
+        public var playPauseToggleCount: Int = 0
+        public var seekTargetMs: Int? = nil
+        public var seekToggleCount: Int = 0
+
         // User preferences (loaded on appear)
         public var preferredEngine: PreferredPlayerEngine = .auto
         public var resumePlaybackEnabled: Bool = true
@@ -103,6 +108,10 @@ public struct VideoPlayerFeature {
         case numberEntryLookupResult(ChannelRecord?)
         case numberEntryConfirmed
         case numberEntryCancelled
+        // Transport controls
+        case playPauseTapped
+        case seekForwardTapped
+        case seekBackwardTapped
         // Buffering feedback
         case bufferingTimerTick
         case delegate(Delegate)
@@ -222,10 +231,7 @@ public struct VideoPlayerFeature {
                 state.status = .loading
                 state.bufferingElapsedSeconds = 0
                 state.playerCommand = .play(url: route.url, engine: route.recommendedEngine)
-                return .merge(
-                    startOverlayTimer(),
-                    startBufferingTimer()
-                )
+                return startBufferingTimer()
 
             case let .playerStatusChanged(status):
                 state.status = status
@@ -234,6 +240,7 @@ public struct VideoPlayerFeature {
                     state.bufferingElapsedSeconds = 0
                     return .merge(
                         startProgressTimer(),
+                        startOverlayTimer(),
                         .cancel(id: CancelID.bufferingTimer)
                     )
                 }
@@ -566,6 +573,34 @@ public struct VideoPlayerFeature {
                 state.numberEntryDigits = ""
                 state.numberEntryResult = nil
                 return .cancel(id: CancelID.numberEntryTimer)
+
+            // MARK: - Transport Controls
+
+            case .playPauseTapped:
+                // Always show overlay when play/pause is pressed (primary way to bring controls back)
+                state.isOverlayVisible = true
+                let timerEffect = startOverlayTimer()
+                if state.status == .playing || state.status == .paused {
+                    state.playPauseToggleCount += 1
+                }
+                return timerEffect
+
+            case .seekForwardTapped:
+                guard state.status == .playing || state.status == .paused else { return .none }
+                let newPos = state.currentPositionMs + 10_000
+                if let duration = state.currentDurationMs {
+                    state.seekTargetMs = min(newPos, duration)
+                } else {
+                    state.seekTargetMs = newPos
+                }
+                state.seekToggleCount += 1
+                return .none
+
+            case .seekBackwardTapped:
+                guard state.status == .playing || state.status == .paused else { return .none }
+                state.seekTargetMs = max(state.currentPositionMs - 10_000, 0)
+                state.seekToggleCount += 1
+                return .none
 
             // MARK: - Buffering Feedback
 
