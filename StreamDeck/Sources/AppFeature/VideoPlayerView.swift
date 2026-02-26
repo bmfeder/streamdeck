@@ -266,12 +266,12 @@ public struct VideoPlayerView: View {
                 .scaleEffect(1.5)
                 .tint(.white)
 
-            if store.bufferingElapsedSeconds >= 10 {
+            if store.bufferingElapsedSeconds >= store.bufferTimeoutSeconds {
                 Text("Stream is slow...")
                     .font(.subheadline)
                     .foregroundStyle(.white.opacity(0.8))
 
-                if store.bufferingElapsedSeconds >= 30 {
+                if store.bufferingElapsedSeconds >= store.bufferTimeoutSeconds + 20 {
                     HStack(spacing: 16) {
                         Button("Retry") {
                             store.send(.retryTapped)

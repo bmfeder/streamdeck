@@ -194,6 +194,7 @@ final class AppFeatureTests: XCTestCase {
             AppFeature()
         } withDependencies: {
             $0.vodListClient.fetchPlaylists = { [] }
+            $0.userDefaultsClient.stringForKey = { _ in nil }
         }
         store.exhaustivity = .off
         await store.send(.settings(.onAppear))
@@ -371,5 +372,64 @@ final class AppFeatureTests: XCTestCase {
         for tab in Tab.allCases {
             XCTAssertFalse(tab.systemImage.isEmpty, "\(tab) has empty systemImage")
         }
+    }
+
+    // MARK: - Settings Playback Preferences
+
+    func testSettingsOnAppear_loadsPreferences() async {
+        let store = TestStore(initialState: AppFeature.State()) {
+            AppFeature()
+        } withDependencies: {
+            $0.vodListClient.fetchPlaylists = { [] }
+            $0.userDefaultsClient.stringForKey = { key in
+                if key == UserDefaultsKey.preferredPlayerEngine { return "vlcKit" }
+                if key == UserDefaultsKey.resumePlaybackEnabled { return "false" }
+                if key == UserDefaultsKey.bufferTimeoutSeconds { return "20" }
+                return nil
+            }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.settings(.onAppear))
+        await store.receive(\.settings.preferencesLoaded) {
+            $0.settings.preferences = UserPreferences(
+                preferredEngine: .vlcKit,
+                resumePlaybackEnabled: false,
+                bufferTimeoutSeconds: 20
+            )
+        }
+        await store.skipReceivedActions()
+    }
+
+    func testPreferredEngineChanged_updatesAndPersists() async {
+        let saved = LockIsolated<[String: String]>([:])
+        let store = TestStore(initialState: AppFeature.State()) {
+            AppFeature()
+        } withDependencies: {
+            $0.userDefaultsClient.setString = { value, key in
+                saved.withValue { $0[key] = value }
+            }
+        }
+
+        await store.send(.settings(.preferredEngineChanged(.vlcKit))) {
+            $0.settings.preferences.preferredEngine = .vlcKit
+        }
+        XCTAssertEqual(saved.value[UserDefaultsKey.preferredPlayerEngine], "vlcKit")
+    }
+
+    func testBufferTimeoutChanged_updatesAndPersists() async {
+        let saved = LockIsolated<[String: String]>([:])
+        let store = TestStore(initialState: AppFeature.State()) {
+            AppFeature()
+        } withDependencies: {
+            $0.userDefaultsClient.setString = { value, key in
+                saved.withValue { $0[key] = value }
+            }
+        }
+
+        await store.send(.settings(.bufferTimeoutChanged(20))) {
+            $0.settings.preferences.bufferTimeoutSeconds = 20
+        }
+        XCTAssertEqual(saved.value[UserDefaultsKey.bufferTimeoutSeconds], "20")
     }
 }

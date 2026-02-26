@@ -38,6 +38,7 @@ final class VideoPlayerFeatureTests: XCTestCase {
             $0.continuousClock = ImmediateClock()
             $0.watchProgressClient.getProgress = { _ in savedProgress }
             $0.watchProgressClient.saveProgress = { _, _, _, _ in }
+            $0.userDefaultsClient.stringForKey = { _ in nil }
         }
     }
 
@@ -1349,5 +1350,204 @@ final class VideoPlayerFeatureTests: XCTestCase {
             $0.numberEntryDigits = ""
             $0.numberEntryResult = nil
         }
+    }
+
+    // MARK: - User Preferences
+
+    func testOnAppear_autoEngine_usesRouterRecommendation() async {
+        let store = makeStore(
+            route: { url in
+                StreamRoute(recommendedEngine: .vlcKit, url: url, reason: "MPEG-TS")
+            }
+        )
+        store.exhaustivity = .off
+
+        await store.send(.onAppear) {
+            $0.status = .routing
+        }
+
+        await store.receive(\.streamRouted) {
+            $0.streamRoute = StreamRoute(
+                recommendedEngine: .vlcKit,
+                url: URL(string: "http://example.com/stream.m3u8")!,
+                reason: "MPEG-TS"
+            )
+            $0.activeEngine = .vlcKit
+            $0.status = .loading
+            $0.playerCommand = .play(
+                url: URL(string: "http://example.com/stream.m3u8")!,
+                engine: .vlcKit
+            )
+        }
+
+        await store.skipReceivedActions()
+    }
+
+    func testOnAppear_preferredAVPlayer_overridesRouter() async {
+        let ch = makeChannel()
+        let store = TestStore(initialState: VideoPlayerFeature.State(channel: ch)) {
+            VideoPlayerFeature()
+        } withDependencies: {
+            $0.streamRouterClient.route = { url in
+                StreamRoute(recommendedEngine: .vlcKit, url: url, reason: "MPEG-TS")
+            }
+            $0.continuousClock = ImmediateClock()
+            $0.watchProgressClient.getProgress = { _ in nil }
+            $0.watchProgressClient.saveProgress = { _, _, _, _ in }
+            $0.userDefaultsClient.stringForKey = { key in
+                if key == UserDefaultsKey.preferredPlayerEngine { return "avPlayer" }
+                return nil
+            }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.onAppear) {
+            $0.preferredEngine = .avPlayer
+            $0.status = .routing
+        }
+
+        await store.receive(\.streamRouted) {
+            $0.streamRoute = StreamRoute(
+                recommendedEngine: .avPlayer,
+                url: URL(string: "http://example.com/stream.m3u8")!,
+                reason: "User preference (AVPlayer)"
+            )
+            $0.activeEngine = .avPlayer
+            $0.status = .loading
+            $0.playerCommand = .play(
+                url: URL(string: "http://example.com/stream.m3u8")!,
+                engine: .avPlayer
+            )
+        }
+
+        await store.skipReceivedActions()
+    }
+
+    func testOnAppear_preferredVLCKit_overridesRouter() async {
+        let ch = makeChannel()
+        let store = TestStore(initialState: VideoPlayerFeature.State(channel: ch)) {
+            VideoPlayerFeature()
+        } withDependencies: {
+            $0.streamRouterClient.route = { url in
+                StreamRoute(recommendedEngine: .avPlayer, url: url, reason: "HLS")
+            }
+            $0.continuousClock = ImmediateClock()
+            $0.watchProgressClient.getProgress = { _ in nil }
+            $0.watchProgressClient.saveProgress = { _, _, _, _ in }
+            $0.userDefaultsClient.stringForKey = { key in
+                if key == UserDefaultsKey.preferredPlayerEngine { return "vlcKit" }
+                return nil
+            }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.onAppear) {
+            $0.preferredEngine = .vlcKit
+            $0.status = .routing
+        }
+
+        await store.receive(\.streamRouted) {
+            $0.streamRoute = StreamRoute(
+                recommendedEngine: .vlcKit,
+                url: URL(string: "http://example.com/stream.m3u8")!,
+                reason: "User preference (VLCKit)"
+            )
+            $0.activeEngine = .vlcKit
+            $0.status = .loading
+            $0.playerCommand = .play(
+                url: URL(string: "http://example.com/stream.m3u8")!,
+                engine: .vlcKit
+            )
+        }
+
+        await store.skipReceivedActions()
+    }
+
+    func testOnAppear_resumeDisabled_noResumePosition() async {
+        let progress = WatchProgressRecord(
+            contentID: "ch-1",
+            playlistID: "pl-1",
+            positionMs: 120_000,
+            durationMs: 3_600_000,
+            updatedAt: 1_000_000
+        )
+        let ch = makeChannel()
+        let store = TestStore(initialState: VideoPlayerFeature.State(channel: ch)) {
+            VideoPlayerFeature()
+        } withDependencies: {
+            $0.streamRouterClient.route = { url in
+                StreamRoute(recommendedEngine: .avPlayer, url: url, reason: "test")
+            }
+            $0.continuousClock = ImmediateClock()
+            $0.watchProgressClient.getProgress = { _ in progress }
+            $0.watchProgressClient.saveProgress = { _, _, _, _ in }
+            $0.userDefaultsClient.stringForKey = { key in
+                if key == UserDefaultsKey.resumePlaybackEnabled { return "false" }
+                return nil
+            }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.onAppear) {
+            $0.resumePlaybackEnabled = false
+            $0.status = .routing
+        }
+
+        await store.skipReceivedActions()
+
+        // Resume should not be set since resume playback is disabled
+        XCTAssertNil(store.state.resumePositionMs)
+    }
+
+    func testRetryTapped_respectsPreferredEngine() async {
+        var state = VideoPlayerFeature.State(channel: makeChannel())
+        state.preferredEngine = .vlcKit
+        state.status = .failed
+        state.streamRoute = StreamRoute(
+            recommendedEngine: .avPlayer,
+            url: URL(string: "http://example.com/stream.m3u8")!,
+            reason: "HLS"
+        )
+
+        let store = TestStore(initialState: state) {
+            VideoPlayerFeature()
+        }
+
+        await store.send(.retryTapped) {
+            $0.retryCount = 0
+            $0.hasTriedFallbackEngine = false
+            $0.activeEngine = .vlcKit // Uses preferred, not router's .avPlayer
+            $0.status = .loading
+            $0.playerCommand = .play(
+                url: URL(string: "http://example.com/stream.m3u8")!,
+                engine: .vlcKit
+            )
+        }
+    }
+
+    func testBufferTimeoutSeconds_loadedFromPreferences() async {
+        let ch = makeChannel()
+        let store = TestStore(initialState: VideoPlayerFeature.State(channel: ch)) {
+            VideoPlayerFeature()
+        } withDependencies: {
+            $0.streamRouterClient.route = { url in
+                StreamRoute(recommendedEngine: .avPlayer, url: url, reason: "test")
+            }
+            $0.continuousClock = ImmediateClock()
+            $0.watchProgressClient.getProgress = { _ in nil }
+            $0.watchProgressClient.saveProgress = { _, _, _, _ in }
+            $0.userDefaultsClient.stringForKey = { key in
+                if key == UserDefaultsKey.bufferTimeoutSeconds { return "20" }
+                return nil
+            }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.onAppear) {
+            $0.bufferTimeoutSeconds = 20
+            $0.status = .routing
+        }
+
+        await store.skipReceivedActions()
     }
 }

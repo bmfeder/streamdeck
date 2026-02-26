@@ -40,6 +40,11 @@ public struct VideoPlayerFeature {
         // Buffering feedback
         public var bufferingElapsedSeconds: Int = 0
 
+        // User preferences (loaded on appear)
+        public var preferredEngine: PreferredPlayerEngine = .auto
+        public var resumePlaybackEnabled: Bool = true
+        public var bufferTimeoutSeconds: Int = 10
+
         public static let maxRetriesPerEngine: Int = 3
 
         public init(channel: ChannelRecord) {
@@ -113,6 +118,7 @@ public struct VideoPlayerFeature {
     @Dependency(\.watchProgressClient) var watchProgressClient
     @Dependency(\.channelListClient) var channelListClient
     @Dependency(\.epgClient) var epgClient
+    @Dependency(\.userDefaultsClient) var userDefaultsClient
     @Dependency(\.continuousClock) var clock
     @Dependency(\.dismiss) var dismiss
 
@@ -140,18 +146,47 @@ public struct VideoPlayerFeature {
                     state.status = .error(.streamUnavailable)
                     return .none
                 }
+                // Load user preferences
+                let prefs = UserPreferences.load(from: userDefaultsClient)
+                state.preferredEngine = prefs.preferredEngine
+                state.resumePlaybackEnabled = prefs.resumePlaybackEnabled
+                state.bufferTimeoutSeconds = prefs.bufferTimeoutSeconds
+
                 state.status = .routing
                 let client = streamRouterClient
                 let progressClient = watchProgressClient
                 let contentID = state.item.contentID
+                let preferredEngine = state.preferredEngine
+                let resumeEnabled = state.resumePlaybackEnabled
                 return .merge(
                     .run { send in
                         let route = await client.route(url)
-                        await send(.streamRouted(route))
+                        let finalRoute: StreamRoute
+                        switch preferredEngine {
+                        case .auto:
+                            finalRoute = route
+                        case .avPlayer:
+                            finalRoute = StreamRoute(
+                                recommendedEngine: .avPlayer,
+                                url: route.url,
+                                reason: "User preference (AVPlayer)"
+                            )
+                        case .vlcKit:
+                            finalRoute = StreamRoute(
+                                recommendedEngine: .vlcKit,
+                                url: route.url,
+                                reason: "User preference (VLCKit)"
+                            )
+                        }
+                        await send(.streamRouted(finalRoute))
                     },
                     .run { send in
-                        let progress = try? await progressClient.getProgress(contentID)
-                        await send(.progressLoaded(progress))
+                        if resumeEnabled {
+                            let progress = try? await progressClient.getProgress(contentID)
+                            await send(.progressLoaded(progress))
+                        } else {
+                            await send(.progressLoaded(nil))
+                        }
                     }
                 )
 
@@ -250,7 +285,15 @@ public struct VideoPlayerFeature {
             case .retryTapped:
                 state.retryCount = 0
                 state.hasTriedFallbackEngine = false
-                let engine = state.streamRoute?.recommendedEngine ?? .avPlayer
+                let engine: PlayerEngine
+                switch state.preferredEngine {
+                case .auto:
+                    engine = state.streamRoute?.recommendedEngine ?? .avPlayer
+                case .avPlayer:
+                    engine = .avPlayer
+                case .vlcKit:
+                    engine = .vlcKit
+                }
                 state.activeEngine = engine
                 guard let url = state.streamRoute?.url else {
                     state.status = .failed

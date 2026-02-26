@@ -90,3 +90,60 @@ public enum PlayerCommand: Equatable, Sendable {
     case stop
     case none
 }
+
+// MARK: - Preferred Player Engine
+
+public enum PreferredPlayerEngine: String, Equatable, Sendable, CaseIterable {
+    case auto
+    case avPlayer
+    case vlcKit
+
+    public var displayName: String {
+        switch self {
+        case .auto: "Auto"
+        case .avPlayer: "AVPlayer"
+        case .vlcKit: "VLCKit"
+        }
+    }
+}
+
+// MARK: - User Preferences
+
+public struct UserPreferences: Equatable, Sendable {
+    public var preferredEngine: PreferredPlayerEngine
+    public var resumePlaybackEnabled: Bool
+    public var bufferTimeoutSeconds: Int
+
+    public init(
+        preferredEngine: PreferredPlayerEngine = .auto,
+        resumePlaybackEnabled: Bool = true,
+        bufferTimeoutSeconds: Int = 10
+    ) {
+        self.preferredEngine = preferredEngine
+        self.resumePlaybackEnabled = resumePlaybackEnabled
+        self.bufferTimeoutSeconds = bufferTimeoutSeconds
+    }
+
+    public static func load(from client: UserDefaultsClient) -> UserPreferences {
+        let engine = client.stringForKey(UserDefaultsKey.preferredPlayerEngine)
+            .flatMap(PreferredPlayerEngine.init(rawValue:)) ?? .auto
+
+        let resumeStr = client.stringForKey(UserDefaultsKey.resumePlaybackEnabled)
+        let resumeEnabled = resumeStr.map { $0 == "true" } ?? true
+
+        let timeoutStr = client.stringForKey(UserDefaultsKey.bufferTimeoutSeconds)
+        let bufferTimeout = timeoutStr.flatMap(Int.init).flatMap { $0 > 0 ? $0 : nil } ?? 10
+
+        return UserPreferences(
+            preferredEngine: engine,
+            resumePlaybackEnabled: resumeEnabled,
+            bufferTimeoutSeconds: bufferTimeout
+        )
+    }
+
+    public func save(to client: UserDefaultsClient) {
+        client.setString(preferredEngine.rawValue, UserDefaultsKey.preferredPlayerEngine)
+        client.setString(resumePlaybackEnabled ? "true" : "false", UserDefaultsKey.resumePlaybackEnabled)
+        client.setString(String(bufferTimeoutSeconds), UserDefaultsKey.bufferTimeoutSeconds)
+    }
+}

@@ -10,6 +10,7 @@ public struct SettingsFeature {
         public var playlists: [PlaylistRecord] = []
         public var playlistToDelete: PlaylistRecord?
         public var refreshingPlaylistID: String?
+        public var preferences: UserPreferences = UserPreferences()
         @Presents public var addPlaylist: AddPlaylistFeature.State?
 
         public init() {}
@@ -28,11 +29,17 @@ public struct SettingsFeature {
         case addXtreamTapped
         case addEmbyTapped
         case addPlaylist(PresentationAction<AddPlaylistFeature.Action>)
+        // Playback preferences
+        case preferencesLoaded(UserPreferences)
+        case preferredEngineChanged(PreferredPlayerEngine)
+        case resumePlaybackToggled(Bool)
+        case bufferTimeoutChanged(Int)
     }
 
     @Dependency(\.epgClient) var epgClient
     @Dependency(\.vodListClient) var vodListClient
     @Dependency(\.playlistImportClient) var playlistImportClient
+    @Dependency(\.userDefaultsClient) var userDefaultsClient
 
     public init() {}
 
@@ -40,13 +47,18 @@ public struct SettingsFeature {
         Reduce { state, action in
             switch action {
             case .onAppear:
+                let defaults = userDefaultsClient
                 let client = vodListClient
-                return .run { send in
-                    let playlists = try await client.fetchPlaylists()
-                    await send(.playlistsLoaded(.success(playlists)))
-                } catch: { error, send in
-                    await send(.playlistsLoaded(.failure(error)))
-                }
+                let prefs = UserPreferences.load(from: defaults)
+                return .merge(
+                    .send(.preferencesLoaded(prefs)),
+                    .run { send in
+                        let playlists = try await client.fetchPlaylists()
+                        await send(.playlistsLoaded(.success(playlists)))
+                    } catch: { error, send in
+                        await send(.playlistsLoaded(.failure(error)))
+                    }
+                )
 
             case let .playlistsLoaded(.success(playlists)):
                 state.playlists = playlists
@@ -116,6 +128,28 @@ public struct SettingsFeature {
                 state.addPlaylist = AddPlaylistFeature.State(sourceType: .emby)
                 return .none
 
+            case let .preferencesLoaded(prefs):
+                state.preferences = prefs
+                return .none
+
+            case let .preferredEngineChanged(engine):
+                state.preferences.preferredEngine = engine
+                let defaults = userDefaultsClient
+                state.preferences.save(to: defaults)
+                return .none
+
+            case let .resumePlaybackToggled(enabled):
+                state.preferences.resumePlaybackEnabled = enabled
+                let defaults = userDefaultsClient
+                state.preferences.save(to: defaults)
+                return .none
+
+            case let .bufferTimeoutChanged(seconds):
+                state.preferences.bufferTimeoutSeconds = seconds
+                let defaults = userDefaultsClient
+                state.preferences.save(to: defaults)
+                return .none
+
             case .addPlaylist(.presented(.delegate(.importCompleted(playlistID: let playlistID)))):
                 let epg = epgClient
                 let vod = vodListClient
@@ -178,6 +212,30 @@ public struct SettingsView: View {
                         store.send(.addEmbyTapped)
                     } label: {
                         Label("Add Emby Server", systemImage: "server.rack")
+                    }
+                }
+                Section("Playback") {
+                    Picker(
+                        "Player Engine",
+                        selection: $store.preferences.preferredEngine.sending(\.preferredEngineChanged)
+                    ) {
+                        ForEach(PreferredPlayerEngine.allCases, id: \.self) { engine in
+                            Text(engine.displayName).tag(engine)
+                        }
+                    }
+                    Toggle(
+                        "Resume Playback",
+                        isOn: $store.preferences.resumePlaybackEnabled.sending(\.resumePlaybackToggled)
+                    )
+                    Picker(
+                        "Buffer Warning",
+                        selection: $store.preferences.bufferTimeoutSeconds.sending(\.bufferTimeoutChanged)
+                    ) {
+                        Text("5 seconds").tag(5)
+                        Text("10 seconds").tag(10)
+                        Text("15 seconds").tag(15)
+                        Text("20 seconds").tag(20)
+                        Text("30 seconds").tag(30)
                     }
                 }
                 Section("About") {

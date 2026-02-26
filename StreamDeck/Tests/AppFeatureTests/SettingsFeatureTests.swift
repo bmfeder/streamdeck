@@ -37,6 +37,7 @@ final class SettingsFeatureTests: XCTestCase {
         }
 
         await store.send(.onAppear)
+        await store.receive(\.preferencesLoaded)
         await store.receive(\.playlistsLoaded.success) {
             $0.playlists = playlists
         }
@@ -50,6 +51,7 @@ final class SettingsFeatureTests: XCTestCase {
         }
 
         await store.send(.onAppear)
+        await store.receive(\.preferencesLoaded)
         await store.receive(\.playlistsLoaded.failure)
     }
 
@@ -67,6 +69,7 @@ final class SettingsFeatureTests: XCTestCase {
         }
 
         await store.send(.onAppear)
+        await store.receive(\.preferencesLoaded)
         await store.receive(\.playlistsLoaded.success) {
             $0.playlists = playlists
         }
