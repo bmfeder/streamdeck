@@ -26,8 +26,7 @@ public struct AddPlaylistFeature {
         public var embyUsername: String = ""
         public var embyPassword: String = ""
         public var embyName: String = ""
-        public var isImporting: Bool = false
-        public var importResult: ImportResultState? = nil
+        public var isValidating: Bool = false
         public var errorMessage: String? = nil
 
         public var isFormValid: Bool {
@@ -56,13 +55,6 @@ public struct AddPlaylistFeature {
         }
     }
 
-    /// Snapshot of a successful import for display.
-    public struct ImportResultState: Equatable, Sendable {
-        public let playlistName: String
-        public let channelsAdded: Int
-        public let parseWarnings: Int
-    }
-
     public enum Action: Sendable {
         case sourceTypeChanged(SourceType)
         case m3uURLChanged(String)
@@ -76,15 +68,15 @@ public struct AddPlaylistFeature {
         case embyUsernameChanged(String)
         case embyPasswordChanged(String)
         case embyNameChanged(String)
-        case importButtonTapped
-        case importResponse(Result<PlaylistImportResult, Error>)
+        case addButtonTapped
+        case validationResponse(Result<Void, Error>)
         case dismissTapped
         case dismissErrorTapped
         case delegate(Delegate)
 
         @CasePathable
         public enum Delegate: Sendable, Equatable {
-            case importCompleted(playlistID: String)
+            case validationSucceeded(PlaylistImportParams)
         }
     }
 
@@ -99,7 +91,6 @@ public struct AddPlaylistFeature {
             case let .sourceTypeChanged(type):
                 state.sourceType = type
                 state.errorMessage = nil
-                state.importResult = nil
                 return .none
 
             case let .m3uURLChanged(url):
@@ -158,66 +149,56 @@ public struct AddPlaylistFeature {
                 state.embyName = name
                 return .none
 
-            case .importButtonTapped:
-                guard state.isFormValid, !state.isImporting else { return .none }
-                state.isImporting = true
+            case .addButtonTapped:
+                guard state.isFormValid, !state.isValidating else { return .none }
+                state.isValidating = true
                 state.errorMessage = nil
-                state.importResult = nil
 
                 let client = importClient
                 switch state.sourceType {
                 case .m3u:
-                    let urlString = state.m3uURL.trimmingCharacters(in: .whitespacesAndNewlines)
-                    let url = URL(string: urlString)!
-                    let name = state.m3uName.isEmpty ? (url.host() ?? "Playlist") : state.m3uName
-                    let epgURLString = state.m3uEpgURL.trimmingCharacters(in: .whitespacesAndNewlines)
-                    let epgURL = epgURLString.isEmpty ? nil : URL(string: epgURLString)
-
+                    let url = URL(string: state.m3uURL.trimmingCharacters(in: .whitespacesAndNewlines))!
                     return .run { send in
-                        let result = try await client.importM3U(url, name, epgURL)
-                        await send(.importResponse(.success(result)))
+                        try await client.validateM3U(url)
+                        await send(.validationResponse(.success(())))
                     } catch: { error, send in
-                        await send(.importResponse(.failure(error)))
+                        await send(.validationResponse(.failure(error)))
                     }
 
                 case .xtream:
                     let serverURL = URL(string: state.xtreamServerURL.trimmingCharacters(in: .whitespacesAndNewlines))!
                     let username = state.xtreamUsername.trimmingCharacters(in: .whitespacesAndNewlines)
                     let password = state.xtreamPassword
-                    let name = state.xtreamName.isEmpty ? (serverURL.host() ?? "Xtream") : state.xtreamName
-
                     return .run { send in
-                        let result = try await client.importXtream(serverURL, username, password, name)
-                        await send(.importResponse(.success(result)))
+                        try await client.validateXtream(serverURL, username, password)
+                        await send(.validationResponse(.success(())))
                     } catch: { error, send in
-                        await send(.importResponse(.failure(error)))
+                        await send(.validationResponse(.failure(error)))
                     }
 
                 case .emby:
                     let serverURL = URL(string: state.embyServerURL.trimmingCharacters(in: .whitespacesAndNewlines))!
                     let username = state.embyUsername.trimmingCharacters(in: .whitespacesAndNewlines)
                     let password = state.embyPassword
-                    let name = state.embyName.isEmpty ? (serverURL.host() ?? "Emby") : state.embyName
-
                     return .run { send in
-                        let result = try await client.importEmby(serverURL, username, password, name)
-                        await send(.importResponse(.success(result)))
+                        try await client.validateEmby(serverURL, username, password)
+                        await send(.validationResponse(.success(())))
                     } catch: { error, send in
-                        await send(.importResponse(.failure(error)))
+                        await send(.validationResponse(.failure(error)))
                     }
                 }
 
-            case let .importResponse(.success(result)):
-                state.isImporting = false
-                state.importResult = ImportResultState(
-                    playlistName: result.playlist.name,
-                    channelsAdded: result.importResult.added,
-                    parseWarnings: result.parseErrors.count
+            case .validationResponse(.success):
+                state.isValidating = false
+                let params = Self.buildParams(from: state)
+                let dismissEffect = dismiss
+                return .merge(
+                    .send(.delegate(.validationSucceeded(params))),
+                    .run { _ in await dismissEffect() }
                 )
-                return .send(.delegate(.importCompleted(playlistID: result.playlist.id)))
 
-            case let .importResponse(.failure(error)):
-                state.isImporting = false
+            case let .validationResponse(.failure(error)):
+                state.isValidating = false
                 state.errorMessage = Self.userFacingMessage(for: error)
                 return .none
 
@@ -235,7 +216,7 @@ public struct AddPlaylistFeature {
         }
     }
 
-    private static func userFacingMessage(for error: Error) -> String {
+    static func userFacingMessage(for error: Error) -> String {
         switch error {
         case PlaylistImportError.downloadFailed:
             return "Could not download the playlist. Check the URL and your internet connection."
@@ -251,6 +232,29 @@ public struct AddPlaylistFeature {
             return "Network error. Check your internet connection and try again."
         default:
             return "An unexpected error occurred. Please try again."
+        }
+    }
+
+    private static func buildParams(from state: State) -> PlaylistImportParams {
+        switch state.sourceType {
+        case .m3u:
+            let url = URL(string: state.m3uURL.trimmingCharacters(in: .whitespacesAndNewlines))!
+            let name = state.m3uName.isEmpty ? (url.host() ?? "Playlist") : state.m3uName
+            let epgURLString = state.m3uEpgURL.trimmingCharacters(in: .whitespacesAndNewlines)
+            let epgURL = epgURLString.isEmpty ? nil : URL(string: epgURLString)
+            return .m3u(url: url, name: name, epgURL: epgURL)
+        case .xtream:
+            let serverURL = URL(string: state.xtreamServerURL.trimmingCharacters(in: .whitespacesAndNewlines))!
+            let username = state.xtreamUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+            let password = state.xtreamPassword
+            let name = state.xtreamName.isEmpty ? (serverURL.host() ?? "Xtream") : state.xtreamName
+            return .xtream(serverURL: serverURL, username: username, password: password, name: name)
+        case .emby:
+            let serverURL = URL(string: state.embyServerURL.trimmingCharacters(in: .whitespacesAndNewlines))!
+            let username = state.embyUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+            let password = state.embyPassword
+            let name = state.embyName.isEmpty ? (serverURL.host() ?? "Emby") : state.embyName
+            return .emby(serverURL: serverURL, username: username, password: password, name: name)
         }
     }
 }
@@ -286,16 +290,6 @@ public struct AddPlaylistView: View {
                 embyFields
             }
 
-            if let result = store.importResult {
-                Section("Import Complete") {
-                    LabeledContent("Playlist", value: result.playlistName)
-                    LabeledContent("Channels Added", value: "\(result.channelsAdded)")
-                    if result.parseWarnings > 0 {
-                        LabeledContent("Warnings", value: "\(result.parseWarnings)")
-                    }
-                }
-            }
-
             if let error = store.errorMessage {
                 Section {
                     Text(error)
@@ -308,20 +302,23 @@ public struct AddPlaylistView: View {
 
             Section {
                 Button {
-                    store.send(.importButtonTapped)
+                    store.send(.addButtonTapped)
                 } label: {
                     HStack {
                         Spacer()
-                        if store.isImporting {
-                            ProgressView()
+                        if store.isValidating {
+                            HStack(spacing: 8) {
+                                ProgressView()
+                                Text("Validating...")
+                            }
                         } else {
-                            Text("Import")
+                            Text("Add")
                                 .fontWeight(.semibold)
                         }
                         Spacer()
                     }
                 }
-                .disabled(!store.isFormValid || store.isImporting)
+                .disabled(!store.isFormValid || store.isValidating)
 
                 Button(role: .cancel) {
                     store.send(.dismissTapped)

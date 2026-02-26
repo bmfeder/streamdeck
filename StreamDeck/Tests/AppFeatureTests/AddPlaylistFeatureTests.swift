@@ -7,34 +7,13 @@ import Database
 @MainActor
 final class AddPlaylistFeatureTests: XCTestCase {
 
-    // MARK: - Helpers
-
-    private func makePlaylistImportResult(
-        playlistID: String = "pl-1",
-        name: String = "Test Playlist",
-        added: Int = 10,
-        parseErrors: [String] = []
-    ) -> PlaylistImportResult {
-        PlaylistImportResult(
-            playlist: PlaylistRecord(
-                id: playlistID,
-                name: name,
-                type: "m3u",
-                url: "http://example.com/pl.m3u"
-            ),
-            importResult: ImportResult(added: added, updated: 0, softDeleted: 0, unchanged: 0),
-            parseErrors: parseErrors
-        )
-    }
-
     // MARK: - Initial State
 
     func testInitialState_defaultsToM3U() {
         let state = AddPlaylistFeature.State()
         XCTAssertEqual(state.sourceType, .m3u)
         XCTAssertTrue(state.m3uURL.isEmpty)
-        XCTAssertFalse(state.isImporting)
-        XCTAssertNil(state.importResult)
+        XCTAssertFalse(state.isValidating)
         XCTAssertNil(state.errorMessage)
     }
 
@@ -45,21 +24,19 @@ final class AddPlaylistFeatureTests: XCTestCase {
 
     // MARK: - Source Type Change
 
-    func testSourceTypeChanged_resetsErrorAndResult() async {
+    func testSourceTypeChanged_resetsError() async {
         let store = TestStore(
             initialState: AddPlaylistFeature.State()
         ) {
             AddPlaylistFeature()
         }
-        // Set error and result manually
         store.exhaustivity = .off
-        await store.send(.importResponse(.failure(PlaylistImportError.emptyPlaylist))) {
+        await store.send(.validationResponse(.failure(PlaylistImportError.emptyPlaylist))) {
             $0.errorMessage = "The playlist contains no channels."
         }
         await store.send(.sourceTypeChanged(.xtream)) {
             $0.sourceType = .xtream
             $0.errorMessage = nil
-            $0.importResult = nil
         }
     }
 
@@ -130,11 +107,9 @@ final class AddPlaylistFeatureTests: XCTestCase {
         XCTAssertFalse(state.isFormValid)
     }
 
-    // MARK: - Import Flow (M3U)
+    // MARK: - Validation Flow (M3U)
 
-    func testImportButtonTapped_m3u_setsLoadingAndImports() async {
-        let importResult = makePlaylistImportResult()
-
+    func testAddButtonTapped_m3u_validatesAndDelegates() async {
         let store = TestStore(
             initialState: {
                 var state = AddPlaylistFeature.State()
@@ -145,32 +120,25 @@ final class AddPlaylistFeatureTests: XCTestCase {
         ) {
             AddPlaylistFeature()
         } withDependencies: {
-            $0.playlistImportClient.importM3U = { _, _, _ in importResult }
+            $0.playlistImportClient.validateM3U = { _ in }
+            $0.dismiss = DismissEffect { }
         }
 
-        await store.send(.importButtonTapped) {
-            $0.isImporting = true
+        await store.send(.addButtonTapped) {
+            $0.isValidating = true
             $0.errorMessage = nil
-            $0.importResult = nil
         }
 
-        await store.receive(\.importResponse.success) {
-            $0.isImporting = false
-            $0.importResult = AddPlaylistFeature.ImportResultState(
-                playlistName: "Test Playlist",
-                channelsAdded: 10,
-                parseWarnings: 0
-            )
+        await store.receive(\.validationResponse) {
+            $0.isValidating = false
         }
 
-        await store.receive(\.delegate.importCompleted)
+        await store.receive(\.delegate.validationSucceeded)
     }
 
-    // MARK: - Import Flow (Xtream)
+    // MARK: - Validation Flow (Xtream)
 
-    func testImportButtonTapped_xtream_setsLoadingAndImports() async {
-        let importResult = makePlaylistImportResult(name: "Xtream Server")
-
+    func testAddButtonTapped_xtream_validatesAndDelegates() async {
         let store = TestStore(
             initialState: {
                 var state = AddPlaylistFeature.State(sourceType: .xtream)
@@ -183,80 +151,74 @@ final class AddPlaylistFeatureTests: XCTestCase {
         ) {
             AddPlaylistFeature()
         } withDependencies: {
-            $0.playlistImportClient.importXtream = { _, _, _, _ in importResult }
+            $0.playlistImportClient.validateXtream = { _, _, _ in }
+            $0.dismiss = DismissEffect { }
         }
 
-        await store.send(.importButtonTapped) {
-            $0.isImporting = true
+        await store.send(.addButtonTapped) {
+            $0.isValidating = true
             $0.errorMessage = nil
-            $0.importResult = nil
         }
 
-        await store.receive(\.importResponse.success) {
-            $0.isImporting = false
-            $0.importResult = AddPlaylistFeature.ImportResultState(
-                playlistName: "Xtream Server",
-                channelsAdded: 10,
-                parseWarnings: 0
-            )
+        await store.receive(\.validationResponse) {
+            $0.isValidating = false
         }
 
-        await store.receive(\.delegate.importCompleted)
+        await store.receive(\.delegate.validationSucceeded)
     }
 
-    // MARK: - Import Failure
+    // MARK: - Validation Failure
 
-    func testImportResponse_failure_setsErrorMessage() async {
+    func testValidationResponse_failure_setsErrorMessage() async {
         let store = TestStore(
             initialState: {
                 var state = AddPlaylistFeature.State()
                 state.m3uURL = "http://example.com/pl.m3u"
-                state.isImporting = true
+                state.isValidating = true
                 return state
             }()
         ) {
             AddPlaylistFeature()
         }
 
-        await store.send(.importResponse(.failure(PlaylistImportError.emptyPlaylist))) {
-            $0.isImporting = false
+        await store.send(.validationResponse(.failure(PlaylistImportError.emptyPlaylist))) {
+            $0.isValidating = false
             $0.errorMessage = "The playlist contains no channels."
         }
     }
 
-    func testImportResponse_authFailure() async {
+    func testValidationResponse_authFailure() async {
         let store = TestStore(
             initialState: {
                 var state = AddPlaylistFeature.State(sourceType: .xtream)
-                state.isImporting = true
+                state.isValidating = true
                 return state
             }()
         ) {
             AddPlaylistFeature()
         }
 
-        await store.send(.importResponse(.failure(PlaylistImportError.authenticationFailed))) {
-            $0.isImporting = false
+        await store.send(.validationResponse(.failure(PlaylistImportError.authenticationFailed))) {
+            $0.isValidating = false
             $0.errorMessage = "Authentication failed. Check your username and password."
         }
     }
 
     // MARK: - No Double Submit
 
-    func testImportButtonTapped_whenAlreadyImporting_noOp() async {
+    func testAddButtonTapped_whenAlreadyValidating_noOp() async {
         let store = TestStore(
             initialState: {
                 var state = AddPlaylistFeature.State()
                 state.m3uURL = "http://example.com/pl.m3u"
-                state.isImporting = true
+                state.isValidating = true
                 return state
             }()
         ) {
             AddPlaylistFeature()
         }
 
-        await store.send(.importButtonTapped)
-        // No state change, no effect fired
+        await store.send(.addButtonTapped)
     }
 
     // MARK: - Dismiss
@@ -325,9 +287,7 @@ final class AddPlaylistFeatureTests: XCTestCase {
         }
     }
 
-    func testImportButtonTapped_emby_setsLoadingAndImports() async {
-        let importResult = makePlaylistImportResult(name: "My Emby")
-
+    func testAddButtonTapped_emby_validatesAndDelegates() async {
         let store = TestStore(
             initialState: {
                 var state = AddPlaylistFeature.State(sourceType: .emby)
@@ -340,40 +300,35 @@ final class AddPlaylistFeatureTests: XCTestCase {
         ) {
             AddPlaylistFeature()
         } withDependencies: {
-            $0.playlistImportClient.importEmby = { _, _, _, _ in importResult }
+            $0.playlistImportClient.validateEmby = { _, _, _ in }
+            $0.dismiss = DismissEffect { }
         }
 
-        await store.send(.importButtonTapped) {
-            $0.isImporting = true
+        await store.send(.addButtonTapped) {
+            $0.isValidating = true
             $0.errorMessage = nil
-            $0.importResult = nil
         }
 
-        await store.receive(\.importResponse.success) {
-            $0.isImporting = false
-            $0.importResult = AddPlaylistFeature.ImportResultState(
-                playlistName: "My Emby",
-                channelsAdded: 10,
-                parseWarnings: 0
-            )
+        await store.receive(\.validationResponse) {
+            $0.isValidating = false
         }
 
-        await store.receive(\.delegate.importCompleted)
+        await store.receive(\.delegate.validationSucceeded)
     }
 
-    func testImportResponse_embyAuthFailure() async {
+    func testValidationResponse_embyAuthFailure() async {
         let store = TestStore(
             initialState: {
                 var state = AddPlaylistFeature.State(sourceType: .emby)
-                state.isImporting = true
+                state.isValidating = true
                 return state
             }()
         ) {
             AddPlaylistFeature()
         }
 
-        await store.send(.importResponse(.failure(PlaylistImportError.authenticationFailed))) {
-            $0.isImporting = false
+        await store.send(.validationResponse(.failure(PlaylistImportError.authenticationFailed))) {
+            $0.isValidating = false
             $0.errorMessage = "Authentication failed. Check your username and password."
         }
     }

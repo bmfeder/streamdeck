@@ -248,10 +248,15 @@ final class SettingsFeatureTests: XCTestCase {
         await store.send(.refreshPlaylistTapped(makePlaylist(id: "pl-1")))
     }
 
-    // MARK: - Import Completed Refreshes List
+    // MARK: - Background Import
 
-    func testImportCompleted_refreshesPlaylistList() async {
+    func testValidationSucceeded_createsPlaylistAndStartsBackgroundImport() async {
         let newPlaylist = makePlaylist(id: "pl-new", name: "New Playlist")
+        let params = PlaylistImportParams.m3u(
+            url: URL(string: "http://example.com/pl.m3u")!,
+            name: "New Playlist",
+            epgURL: nil
+        )
 
         var state = SettingsFeature.State()
         state.addPlaylist = AddPlaylistFeature.State(sourceType: .m3u)
@@ -259,18 +264,77 @@ final class SettingsFeatureTests: XCTestCase {
         let store = TestStore(initialState: state) {
             SettingsFeature()
         } withDependencies: {
+            $0.playlistImportClient.createPlaylist = { _ in newPlaylist }
+            $0.playlistImportClient.refreshPlaylist = { _ in
+                PlaylistImportResult(
+                    playlist: newPlaylist,
+                    importResult: ImportResult(added: 10, updated: 0, softDeleted: 0, unchanged: 0)
+                )
+            }
+            $0.vodListClient.fetchPlaylists = { [newPlaylist] }
             $0.epgClient.syncEPG = { _ in
                 EpgImportResult(programsImported: 0, programsPurged: 0, parseErrorCount: 0)
             }
-            $0.vodListClient.fetchPlaylists = { [newPlaylist] }
         }
         store.exhaustivity = .off
 
-        await store.send(.addPlaylist(.presented(.delegate(.importCompleted(playlistID: "pl-new")))))
+        await store.send(.addPlaylist(.presented(.delegate(.validationSucceeded(params)))))
         await store.skipReceivedActions()
 
         store.assert {
             $0.playlists = [newPlaylist]
+            $0.importingPlaylistIDs = []
+        }
+    }
+
+    func testBackgroundImportStarted_addsToImportingSet() async {
+        let store = TestStore(initialState: SettingsFeature.State()) {
+            SettingsFeature()
+        }
+
+        await store.send(.backgroundImportStarted(playlistID: "pl-1")) {
+            $0.importingPlaylistIDs = ["pl-1"]
+        }
+    }
+
+    func testBackgroundImportCompleted_removesFromImportingSet() async {
+        var state = SettingsFeature.State()
+        state.importingPlaylistIDs = ["pl-1"]
+
+        let store = TestStore(initialState: state) {
+            SettingsFeature()
+        }
+
+        await store.send(.backgroundImportCompleted(playlistID: "pl-1")) {
+            $0.importingPlaylistIDs = []
+        }
+    }
+
+    func testBackgroundImportFailed_setsError() async {
+        var state = SettingsFeature.State()
+        state.importingPlaylistIDs = ["pl-1"]
+        state.playlists = [makePlaylist(id: "pl-1")]
+
+        let store = TestStore(initialState: state) {
+            SettingsFeature()
+        }
+
+        await store.send(.backgroundImportFailed(playlistID: "pl-1", error: "Network error")) {
+            $0.importingPlaylistIDs = []
+            $0.importErrors = ["pl-1": "Network error"]
+        }
+    }
+
+    func testDismissImportError_clearsError() async {
+        var state = SettingsFeature.State()
+        state.importErrors = ["pl-1": "Some error"]
+
+        let store = TestStore(initialState: state) {
+            SettingsFeature()
+        }
+
+        await store.send(.dismissImportError(playlistID: "pl-1")) {
+            $0.importErrors = [:]
         }
     }
 

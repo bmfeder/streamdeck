@@ -28,6 +28,60 @@ public struct PlaylistImportService: Sendable {
         self.uuidGenerator = uuidGenerator
     }
 
+    // MARK: - Create Record
+
+    /// Creates a playlist record and stores credentials without importing content.
+    /// The record is ready for `refreshPlaylist(id:)` to perform the actual import.
+    public func createPlaylistRecord(params: PlaylistImportParams) throws -> PlaylistRecord {
+        let playlistID = uuidGenerator()
+        let record: PlaylistRecord
+
+        switch params {
+        case let .m3u(url, name, epgURL):
+            record = PlaylistRecord(
+                id: playlistID,
+                name: name,
+                type: "m3u",
+                url: url.absoluteString,
+                epgURL: epgURL?.absoluteString,
+                lastSync: nil,
+                sortOrder: 0
+            )
+
+        case let .xtream(serverURL, username, password, name):
+            let keychainKey = "xtream-\(playlistID)"
+            KeychainHelper.save(key: keychainKey, value: password)
+            record = PlaylistRecord(
+                id: playlistID,
+                name: name,
+                type: "xtream",
+                url: serverURL.absoluteString,
+                username: username,
+                passwordRef: keychainKey,
+                lastSync: nil,
+                sortOrder: 0
+            )
+
+        case let .emby(serverURL, username, password, name):
+            let keychainKey = "emby-\(playlistID)"
+            let credJSON = try JSONEncoder().encode(["password": password])
+            KeychainHelper.save(key: keychainKey, value: String(data: credJSON, encoding: .utf8)!)
+            record = PlaylistRecord(
+                id: playlistID,
+                name: name,
+                type: "emby",
+                url: serverURL.absoluteString,
+                username: username,
+                passwordRef: keychainKey,
+                lastSync: nil,
+                sortOrder: 0
+            )
+        }
+
+        try playlistRepo.create(record)
+        return record
+    }
+
     // MARK: - Refresh
 
     /// Re-imports content for an existing playlist, preserving favorites and watch progress.
@@ -262,17 +316,21 @@ public struct PlaylistImportService: Sendable {
                     } else {
                         let seriesRecord = EmbyConverter.fromEmbySeries(item, playlistID: playlist.id, serverURL: serverURL)
                         vodItems.append(seriesRecord)
-                        let episodesResponse = try await client.getItems(
-                            userId: userId, accessToken: accessToken,
-                            parentId: library.id, includeItemTypes: "Episode",
-                            startIndex: 0, limit: 1000
-                        )
-                        let seriesEpisodes = episodesResponse.items.filter { $0.seriesId == item.id }
-                        for ep in seriesEpisodes {
-                            vodItems.append(EmbyConverter.fromEmbyEpisode(
-                                ep, playlistID: playlist.id, seriesID: seriesRecord.id,
-                                serverURL: serverURL, accessToken: accessToken
-                            ))
+                        var epStartIndex = 0
+                        while true {
+                            let episodesResponse = try await client.getItems(
+                                userId: userId, accessToken: accessToken,
+                                parentId: item.id, includeItemTypes: "Episode",
+                                startIndex: epStartIndex, limit: 100
+                            )
+                            for ep in episodesResponse.items {
+                                vodItems.append(EmbyConverter.fromEmbyEpisode(
+                                    ep, playlistID: playlist.id, seriesID: seriesRecord.id,
+                                    serverURL: serverURL, accessToken: accessToken
+                                ))
+                            }
+                            epStartIndex += episodesResponse.items.count
+                            if epStartIndex >= episodesResponse.totalRecordCount { break }
                         }
                     }
                 }
@@ -621,17 +679,21 @@ public struct PlaylistImportService: Sendable {
                         vodItems.append(seriesRecord)
 
                         // Fetch episodes for this series
-                        let episodesResponse = try await client.getItems(
-                            userId: userId, accessToken: accessToken,
-                            parentId: library.id, includeItemTypes: "Episode",
-                            startIndex: 0, limit: 1000
-                        )
-                        let seriesEpisodes = episodesResponse.items.filter { $0.seriesId == item.id }
-                        for ep in seriesEpisodes {
-                            vodItems.append(EmbyConverter.fromEmbyEpisode(
-                                ep, playlistID: playlistID, seriesID: seriesRecord.id,
-                                serverURL: serverURL, accessToken: accessToken
-                            ))
+                        var epStartIndex = 0
+                        while true {
+                            let episodesResponse = try await client.getItems(
+                                userId: userId, accessToken: accessToken,
+                                parentId: item.id, includeItemTypes: "Episode",
+                                startIndex: epStartIndex, limit: 100
+                            )
+                            for ep in episodesResponse.items {
+                                vodItems.append(EmbyConverter.fromEmbyEpisode(
+                                    ep, playlistID: playlistID, seriesID: seriesRecord.id,
+                                    serverURL: serverURL, accessToken: accessToken
+                                ))
+                            }
+                            epStartIndex += episodesResponse.items.count
+                            if epStartIndex >= episodesResponse.totalRecordCount { break }
                         }
                     }
                 }

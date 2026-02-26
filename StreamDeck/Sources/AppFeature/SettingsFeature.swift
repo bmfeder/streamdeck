@@ -27,6 +27,10 @@ public struct SettingsFeature {
         public var isSyncing: Bool = false
         public var lastSyncResult: SyncPullResult?
 
+        // Background import tracking
+        public var importingPlaylistIDs: Set<String> = []
+        public var importErrors: [String: String] = [:]
+
         public init() {}
     }
 
@@ -65,6 +69,11 @@ public struct SettingsFeature {
         case cloudKitStatusLoaded(Bool)
         case syncNowTapped
         case syncCompleted(Result<SyncPullResult, Error>)
+        // Background import
+        case backgroundImportStarted(playlistID: String)
+        case backgroundImportCompleted(playlistID: String)
+        case backgroundImportFailed(playlistID: String, error: String)
+        case dismissImportError(playlistID: String)
     }
 
     @Dependency(\.epgClient) var epgClient
@@ -113,6 +122,8 @@ public struct SettingsFeature {
                 guard let playlist = state.playlistToDelete else { return .none }
                 state.playlistToDelete = nil
                 let id = playlist.id
+                state.importingPlaylistIDs.remove(id)
+                state.importErrors.removeValue(forKey: id)
                 let client = playlistImportClient
                 return .run { send in
                     try await client.deletePlaylist(id)
@@ -220,7 +231,6 @@ public struct SettingsFeature {
                 playlist.refreshHrs = state.editRefreshHrs
                 state.editingPlaylist = nil
                 let client = playlistImportClient
-                let vod = vodListClient
                 let updatedPlaylist = playlist
                 return .run { send in
                     try await client.updatePlaylist(updatedPlaylist)
@@ -289,20 +299,57 @@ public struct SettingsFeature {
                 state.isSyncing = false
                 return .none
 
-            case .addPlaylist(.presented(.delegate(.importCompleted(playlistID: let playlistID)))):
+            // Background import — triggered by AddPlaylistFeature validation success
+            case let .addPlaylist(.presented(.delegate(.validationSucceeded(params)))):
+                let client = playlistImportClient
                 let epg = epgClient
                 let vod = vodListClient
-                return .merge(
-                    .run { _ in
+                return .run { send in
+                    let playlist = try await client.createPlaylist(params)
+                    let playlistID = playlist.id
+
+                    // Reload so the new playlist appears immediately
+                    let playlists = try await vod.fetchPlaylists()
+                    await send(.playlistsLoaded(.success(playlists)))
+                    await send(.backgroundImportStarted(playlistID: playlistID))
+
+                    // Run the full import in background (reuses refreshPlaylist)
+                    do {
+                        _ = try await client.refreshPlaylist(playlistID)
+                        await send(.backgroundImportCompleted(playlistID: playlistID))
                         _ = try? await epg.syncEPG(playlistID)
-                    },
-                    .run { send in
-                        let playlists = try await vod.fetchPlaylists()
-                        await send(.playlistsLoaded(.success(playlists)))
-                    } catch: { _, _ in }
-                )
+                        let updatedPlaylists = try await vod.fetchPlaylists()
+                        await send(.playlistsLoaded(.success(updatedPlaylists)))
+                    } catch {
+                        await send(.backgroundImportFailed(
+                            playlistID: playlistID,
+                            error: AddPlaylistFeature.userFacingMessage(for: error)
+                        ))
+                    }
+                } catch: { _, _ in }
 
             case .addPlaylist:
+                return .none
+
+            // Background import lifecycle
+            case let .backgroundImportStarted(playlistID):
+                state.importingPlaylistIDs.insert(playlistID)
+                state.importErrors.removeValue(forKey: playlistID)
+                return .none
+
+            case let .backgroundImportCompleted(playlistID):
+                state.importingPlaylistIDs.remove(playlistID)
+                return .none
+
+            case let .backgroundImportFailed(playlistID, error):
+                state.importingPlaylistIDs.remove(playlistID)
+                if state.playlists.contains(where: { $0.id == playlistID }) {
+                    state.importErrors[playlistID] = error
+                }
+                return .none
+
+            case let .dismissImportError(playlistID):
+                state.importErrors.removeValue(forKey: playlistID)
                 return .none
             }
         }
@@ -541,23 +588,47 @@ public struct SettingsView: View {
 
     private func playlistRow(_ playlist: PlaylistRecord) -> some View {
         let isRefreshing = store.refreshingPlaylistID == playlist.id
+        let isImporting = store.importingPlaylistIDs.contains(playlist.id)
+        let importError = store.importErrors[playlist.id]
+
         return HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text(playlist.name)
                     .font(.body)
                     .foregroundStyle(.primary)
-                if let lastSync = playlist.lastSync {
+                if isImporting {
+                    Text("Importing...")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                } else if let error = importError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .lineLimit(1)
+                } else if let lastSync = playlist.lastSync {
                     Text("Synced \(formattedDate(lastSync))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Not yet synced")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
             Spacer()
-            if isRefreshing {
+            if isImporting || isRefreshing {
                 ProgressView()
                     #if os(tvOS)
                     .scaleEffect(0.8)
                     #endif
+            } else if importError != nil {
+                Button {
+                    store.send(.dismissImportError(playlistID: playlist.id))
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.red)
+                }
+                .buttonStyle(.borderless)
             } else {
                 Button {
                     store.send(.refreshPlaylistTapped(playlist))

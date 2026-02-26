@@ -1,7 +1,9 @@
 import ComposableArchitecture
+import EmbyClient
 import Foundation
 import Database
 import Repositories
+import XtreamClient
 
 /// TCA dependency client for playlist import operations.
 /// Wraps PlaylistImportService for use in reducers.
@@ -38,6 +40,26 @@ public struct PlaylistImportClient: Sendable {
 
     /// Update playlist metadata (name, EPG URL, refresh interval).
     public var updatePlaylist: @Sendable (_ record: PlaylistRecord) async throws -> Void
+
+    /// Validate an M3U URL is reachable (HEAD request).
+    public var validateM3U: @Sendable (_ url: URL) async throws -> Void
+
+    /// Validate Xtream credentials (authenticate only).
+    public var validateXtream: @Sendable (
+        _ serverURL: URL,
+        _ username: String,
+        _ password: String
+    ) async throws -> Void
+
+    /// Validate Emby credentials (authenticate only).
+    public var validateEmby: @Sendable (
+        _ serverURL: URL,
+        _ username: String,
+        _ password: String
+    ) async throws -> Void
+
+    /// Create a playlist record and store credentials without importing content.
+    public var createPlaylist: @Sendable (_ params: PlaylistImportParams) async throws -> PlaylistRecord
 }
 
 // MARK: - Dependency Registration
@@ -79,6 +101,52 @@ extension PlaylistImportClient: DependencyKey {
             },
             updatePlaylist: { record in
                 try playlistRepo.update(record)
+            },
+            validateM3U: { url in
+                var request = URLRequest(url: url)
+                request.httpMethod = "HEAD"
+                request.timeoutInterval = 15
+                let (_, response) = try await URLSession.shared.data(for: request)
+                guard let httpResponse = response as? HTTPURLResponse,
+                      (200...399).contains(httpResponse.statusCode) else {
+                    throw PlaylistImportError.downloadFailed("URL is not reachable")
+                }
+            },
+            validateXtream: { serverURL, username, password in
+                let credentials = XtreamCredentials(
+                    serverURL: serverURL,
+                    username: username,
+                    password: password
+                )
+                let client = XtreamClient(credentials: credentials, httpClient: URLSessionHTTPClient())
+                do {
+                    _ = try await client.authenticate()
+                } catch let error as XtreamError {
+                    switch error {
+                    case .accountExpired: throw PlaylistImportError.accountExpired
+                    case .authenticationFailed: throw PlaylistImportError.authenticationFailed
+                    default: throw PlaylistImportError.networkError(String(describing: error))
+                    }
+                }
+            },
+            validateEmby: { serverURL, username, password in
+                let credentials = EmbyCredentials(
+                    serverURL: serverURL,
+                    username: username,
+                    password: password
+                )
+                let client = EmbyClient(credentials: credentials, httpClient: URLSessionHTTPClient())
+                do {
+                    _ = try await client.authenticate()
+                } catch let error as EmbyError {
+                    switch error {
+                    case .authenticationFailed: throw PlaylistImportError.authenticationFailed
+                    default: throw PlaylistImportError.networkError(String(describing: error))
+                    }
+                }
+            },
+            createPlaylist: { params in
+                try service.createPlaylistRecord(params: params)
             }
         )
     }
@@ -90,7 +158,11 @@ extension PlaylistImportClient: DependencyKey {
             importEmby: unimplemented("PlaylistImportClient.importEmby"),
             deletePlaylist: unimplemented("PlaylistImportClient.deletePlaylist"),
             refreshPlaylist: unimplemented("PlaylistImportClient.refreshPlaylist"),
-            updatePlaylist: unimplemented("PlaylistImportClient.updatePlaylist")
+            updatePlaylist: unimplemented("PlaylistImportClient.updatePlaylist"),
+            validateM3U: unimplemented("PlaylistImportClient.validateM3U"),
+            validateXtream: unimplemented("PlaylistImportClient.validateXtream"),
+            validateEmby: unimplemented("PlaylistImportClient.validateEmby"),
+            createPlaylist: unimplemented("PlaylistImportClient.createPlaylist")
         )
     }
 
