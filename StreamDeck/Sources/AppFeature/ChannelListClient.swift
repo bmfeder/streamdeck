@@ -35,6 +35,8 @@ public struct ChannelListClient: Sendable {
     public var fetchByNumber: @Sendable (_ playlistID: String, _ number: Int) async throws -> ChannelRecord?
 
     public var fetchByIDs: @Sendable (_ ids: [String]) async throws -> [ChannelRecord]
+
+    public var fetchByEpgID: @Sendable (_ epgID: String) async throws -> ChannelRecord?
 }
 
 // MARK: - Dependency Registration
@@ -71,6 +73,9 @@ extension ChannelListClient: DependencyKey {
             },
             fetchByIDs: { ids in
                 try channelRepo.getBatch(ids: ids)
+            },
+            fetchByEpgID: { epgID in
+                try channelRepo.getByEpgID(epgID)
             }
         )
     }
@@ -83,7 +88,8 @@ extension ChannelListClient: DependencyKey {
             fetchFavorites: unimplemented("ChannelListClient.fetchFavorites"),
             toggleFavorite: unimplemented("ChannelListClient.toggleFavorite"),
             fetchByNumber: unimplemented("ChannelListClient.fetchByNumber"),
-            fetchByIDs: unimplemented("ChannelListClient.fetchByIDs")
+            fetchByIDs: unimplemented("ChannelListClient.fetchByIDs"),
+            fetchByEpgID: unimplemented("ChannelListClient.fetchByEpgID")
         )
     }
 

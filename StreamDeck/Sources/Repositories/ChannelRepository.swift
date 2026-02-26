@@ -253,8 +253,8 @@ public struct ChannelRepository: Sendable {
     }
 
     /// Searches channels by name (case-insensitive LIKE).
-    /// Optionally scoped to a specific playlist.
-    public func search(query: String, playlistID: String? = nil) throws -> [ChannelRecord] {
+    /// Optionally scoped to a specific playlist. Limited to `limit` results for performance.
+    public func search(query: String, playlistID: String? = nil, limit: Int = 20) throws -> [ChannelRecord] {
         try dbManager.dbQueue.read { db in
             var request = ChannelRecord
                 .filter(Column("is_deleted") == false)
@@ -264,7 +264,16 @@ public struct ChannelRepository: Sendable {
                 request = request.filter(Column("playlist_id") == playlistID)
             }
 
-            return try request.order(Column("name").asc).fetchAll(db)
+            return try request.order(Column("name").asc).limit(limit).fetchAll(db)
+        }
+    }
+
+    /// Fetches the first active channel matching the given EPG ID.
+    public func getByEpgID(_ epgID: String) throws -> ChannelRecord? {
+        try dbManager.dbQueue.read { db in
+            try ChannelRecord
+                .filter(Column("epg_id") == epgID && Column("is_deleted") == false)
+                .fetchOne(db)
         }
     }
 

@@ -15,18 +15,22 @@ public struct EPGClient: Sendable {
         _ channelEpgIDs: [String], _ from: Int, _ to: Int
     ) async throws -> [String: [EpgProgramRecord]]
 
+    public var searchPrograms: @Sendable (_ query: String) async throws -> [EpgProgramRecord]
+
     public init(
         fetchNowPlaying: @escaping @Sendable (_ channelEpgID: String) async throws -> EpgProgramRecord?,
         fetchNowPlayingBatch: @escaping @Sendable (_ channelEpgIDs: [String]) async throws -> [String: EpgProgramRecord],
         syncEPG: @escaping @Sendable (_ playlistID: String) async throws -> EpgImportResult,
         fetchProgramsBatch: @escaping @Sendable (
             _ channelEpgIDs: [String], _ from: Int, _ to: Int
-        ) async throws -> [String: [EpgProgramRecord]]
+        ) async throws -> [String: [EpgProgramRecord]],
+        searchPrograms: @escaping @Sendable (_ query: String) async throws -> [EpgProgramRecord]
     ) {
         self.fetchNowPlaying = fetchNowPlaying
         self.fetchNowPlayingBatch = fetchNowPlayingBatch
         self.syncEPG = syncEPG
         self.fetchProgramsBatch = fetchProgramsBatch
+        self.searchPrograms = searchPrograms
     }
 }
 
@@ -63,6 +67,10 @@ extension EPGClient: DependencyKey {
                 try epgRepo.getProgramsOverlapping(
                     channelEpgIDs: channelEpgIDs, from: from, to: to
                 )
+            },
+            searchPrograms: { query in
+                let now = Int(Date().timeIntervalSince1970)
+                return try epgRepo.searchPrograms(query: query, after: now)
             }
         )
     }
@@ -72,7 +80,8 @@ extension EPGClient: DependencyKey {
             fetchNowPlaying: unimplemented("EPGClient.fetchNowPlaying"),
             fetchNowPlayingBatch: unimplemented("EPGClient.fetchNowPlayingBatch"),
             syncEPG: unimplemented("EPGClient.syncEPG"),
-            fetchProgramsBatch: unimplemented("EPGClient.fetchProgramsBatch")
+            fetchProgramsBatch: unimplemented("EPGClient.fetchProgramsBatch"),
+            searchPrograms: unimplemented("EPGClient.searchPrograms")
         )
     }
 

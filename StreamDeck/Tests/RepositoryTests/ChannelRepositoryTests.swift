@@ -33,6 +33,7 @@ final class ChannelRepositoryTests: XCTestCase {
         groupName: String? = nil,
         streamURL: String = "http://example.com/stream",
         logoURL: String? = nil,
+        epgID: String? = nil,
         tvgID: String? = nil,
         channelNum: Int? = nil,
         isFavorite: Bool = false,
@@ -47,6 +48,7 @@ final class ChannelRepositoryTests: XCTestCase {
             groupName: groupName,
             streamURL: streamURL,
             logoURL: logoURL,
+            epgID: epgID,
             tvgID: tvgID,
             channelNum: channelNum,
             isFavorite: isFavorite,
@@ -438,5 +440,22 @@ final class ChannelRepositoryTests: XCTestCase {
         try repo.toggleFavorite(id: "ch-1")
         let unToggled = try XCTUnwrap(repo.get(id: "ch-1"))
         XCTAssertFalse(unToggled.isFavorite)
+    }
+
+    // MARK: - Get By EPG ID
+
+    func testGetByEpgID_returnsMatch() throws {
+        let channel = makeChannel(id: "ch-epg", name: "CNN", epgID: "CNN.us")
+        try repo.create(channel)
+
+        let result = try repo.getByEpgID("CNN.us")
+        XCTAssertEqual(result?.id, "ch-epg")
+    }
+
+    func testGetByEpgID_excludesDeleted() throws {
+        let channel = makeChannel(id: "ch-del", name: "ESPN", epgID: "ESPN.us", isDeleted: true)
+        try repo.create(channel)
+
+        XCTAssertNil(try repo.getByEpgID("ESPN.us"))
     }
 }

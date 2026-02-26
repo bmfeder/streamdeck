@@ -6,6 +6,7 @@ public enum DatabaseMigrations {
     /// Registers all migrations with the given migrator.
     public static func registerAll(in migrator: inout DatabaseMigrator) {
         registerV1(in: &migrator)
+        registerV2(in: &migrator)
     }
 
     // MARK: - v1: Initial Schema
@@ -117,6 +118,16 @@ public enum DatabaseMigrations {
             try db.execute(sql: """
                 CREATE INDEX idx_progress_updated ON watch_progress(updated_at DESC)
                 """)
+        }
+    }
+
+    // MARK: - v2: Search Indexes
+
+    private static func registerV2(in migrator: inout DatabaseMigrator) {
+        migrator.registerMigration("v2") { db in
+            try db.create(index: "idx_channel_name", on: "channel", columns: ["name"])
+            try db.create(index: "idx_vod_title", on: "vod_item", columns: ["title"])
+            try db.create(index: "idx_epg_title", on: "epg_program", columns: ["title"])
         }
     }
 }

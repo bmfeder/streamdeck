@@ -88,6 +88,21 @@ public struct EpgRepository: Sendable {
         }
     }
 
+    // MARK: - Search
+
+    /// Searches EPG programs by title (case-insensitive LIKE) for current or upcoming programs.
+    /// Returns at most `limit` results, ordered by start_time ascending.
+    public func searchPrograms(query: String, after: Int, limit: Int = 20) throws -> [EpgProgramRecord] {
+        try dbManager.dbQueue.read { db in
+            try EpgProgramRecord
+                .filter(Column("title").like("%\(query)%"))
+                .filter(Column("end_time") > after)
+                .order(Column("start_time").asc)
+                .limit(limit)
+                .fetchAll(db)
+        }
+    }
+
     // MARK: - Count
 
     public func count() throws -> Int {

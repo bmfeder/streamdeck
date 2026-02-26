@@ -113,8 +113,8 @@ public struct VodRepository: Sendable {
     }
 
     /// Searches VOD items by title (case-insensitive LIKE).
-    /// Optionally scoped to a playlist and/or type.
-    public func searchVod(query: String, playlistID: String? = nil, type: String? = nil) throws -> [VodItemRecord] {
+    /// Optionally scoped to a playlist and/or type. Limited to `limit` results for performance.
+    public func searchVod(query: String, playlistID: String? = nil, type: String? = nil, limit: Int = 20) throws -> [VodItemRecord] {
         try dbManager.dbQueue.read { db in
             var request = VodItemRecord
                 .filter(Column("title").like("%\(query)%"))
@@ -126,7 +126,7 @@ public struct VodRepository: Sendable {
                 request = request.filter(Column("type") == type)
             }
 
-            return try request.order(Column("title").asc).fetchAll(db)
+            return try request.order(Column("title").asc).limit(limit).fetchAll(db)
         }
     }
 

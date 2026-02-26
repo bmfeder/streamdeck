@@ -11,12 +11,15 @@ public struct SearchFeature {
         public var channelResults: [ChannelRecord] = []
         public var movieResults: [VodItemRecord] = []
         public var seriesResults: [VodItemRecord] = []
+        public var programResults: [EpgProgramRecord] = []
         public var isSearching: Bool = false
+        public var pendingSearchCount: Int = 0
 
         @Presents public var videoPlayer: VideoPlayerFeature.State?
 
         public var hasResults: Bool {
-            !channelResults.isEmpty || !movieResults.isEmpty || !seriesResults.isEmpty
+            !channelResults.isEmpty || !movieResults.isEmpty
+                || !seriesResults.isEmpty || !programResults.isEmpty
         }
 
         public var hasSearched: Bool { !searchQuery.isEmpty }
@@ -28,9 +31,11 @@ public struct SearchFeature {
         case searchQueryChanged(String)
         case channelResultsLoaded(Result<[ChannelRecord], Error>)
         case vodResultsLoaded(Result<[VodItemRecord], Error>)
+        case epgResultsLoaded(Result<[EpgProgramRecord], Error>)
         case channelTapped(ChannelRecord)
         case movieTapped(VodItemRecord)
         case seriesTapped(VodItemRecord)
+        case programTapped(EpgProgramRecord)
         case clearTapped
         case videoPlayer(PresentationAction<VideoPlayerFeature.Action>)
         case delegate(Delegate)
@@ -45,6 +50,7 @@ public struct SearchFeature {
 
     @Dependency(\.channelListClient) var channelListClient
     @Dependency(\.vodListClient) var vodListClient
+    @Dependency(\.epgClient) var epgClient
 
     public init() {}
 
@@ -68,12 +74,16 @@ public struct SearchFeature {
                     state.channelResults = []
                     state.movieResults = []
                     state.seriesResults = []
+                    state.programResults = []
                     state.isSearching = false
+                    state.pendingSearchCount = 0
                     return .cancel(id: CancelID.search)
                 }
                 state.isSearching = true
+                state.pendingSearchCount = 3
                 let channelClient = channelListClient
                 let vodClient = vodListClient
+                let epg = epgClient
                 return .merge(
                     .run { send in
                         let channels = try await channelClient.searchChannels(query, nil)
@@ -86,30 +96,52 @@ public struct SearchFeature {
                         await send(.vodResultsLoaded(.success(items)))
                     } catch: { error, send in
                         await send(.vodResultsLoaded(.failure(error)))
+                    },
+                    .run { send in
+                        let programs = try await epg.searchPrograms(query)
+                        await send(.epgResultsLoaded(.success(programs)))
+                    } catch: { error, send in
+                        await send(.epgResultsLoaded(.failure(error)))
                     }
                 )
                 .cancellable(id: CancelID.search, cancelInFlight: true)
 
             case let .channelResultsLoaded(.success(channels)):
                 state.channelResults = channels
-                state.isSearching = false
+                state.pendingSearchCount -= 1
+                if state.pendingSearchCount <= 0 { state.isSearching = false }
                 return .none
 
             case .channelResultsLoaded(.failure):
                 state.channelResults = []
-                state.isSearching = false
+                state.pendingSearchCount -= 1
+                if state.pendingSearchCount <= 0 { state.isSearching = false }
                 return .none
 
             case let .vodResultsLoaded(.success(items)):
                 state.movieResults = items.filter { $0.type == "movie" }
                 state.seriesResults = items.filter { $0.type == "series" }
-                state.isSearching = false
+                state.pendingSearchCount -= 1
+                if state.pendingSearchCount <= 0 { state.isSearching = false }
                 return .none
 
             case .vodResultsLoaded(.failure):
                 state.movieResults = []
                 state.seriesResults = []
-                state.isSearching = false
+                state.pendingSearchCount -= 1
+                if state.pendingSearchCount <= 0 { state.isSearching = false }
+                return .none
+
+            case let .epgResultsLoaded(.success(programs)):
+                state.programResults = programs
+                state.pendingSearchCount -= 1
+                if state.pendingSearchCount <= 0 { state.isSearching = false }
+                return .none
+
+            case .epgResultsLoaded(.failure):
+                state.programResults = []
+                state.pendingSearchCount -= 1
+                if state.pendingSearchCount <= 0 { state.isSearching = false }
                 return .none
 
             case let .channelTapped(channel):
@@ -124,12 +156,23 @@ public struct SearchFeature {
             case let .seriesTapped(series):
                 return .send(.delegate(.showSeries(series)))
 
+            case let .programTapped(program):
+                let client = channelListClient
+                let epgID = program.channelEpgID
+                return .run { send in
+                    if let channel = try await client.fetchByEpgID(epgID) {
+                        await send(.channelTapped(channel))
+                    }
+                }
+
             case .clearTapped:
                 state.searchQuery = ""
                 state.channelResults = []
                 state.movieResults = []
                 state.seriesResults = []
+                state.programResults = []
                 state.isSearching = false
+                state.pendingSearchCount = 0
                 return .cancel(id: CancelID.search)
 
             case .delegate:
@@ -185,7 +228,7 @@ public struct SearchView: View {
                 get: { store.searchQuery },
                 set: { store.send(.searchQueryChanged($0)) }
             ),
-            prompt: "Channels, movies, and TV shows"
+            prompt: "Channels, movies, TV shows, and programs"
         )
     }
 
@@ -204,6 +247,9 @@ public struct SearchView: View {
             VStack(alignment: .leading, spacing: 32) {
                 if !store.channelResults.isEmpty {
                     channelsSection
+                }
+                if !store.programResults.isEmpty {
+                    programsSection
                 }
                 if !store.movieResults.isEmpty {
                     moviesSection
@@ -240,6 +286,65 @@ public struct SearchView: View {
                 }
                 .padding(.horizontal, 20)
             }
+        }
+    }
+
+    private var programsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Programs")
+                .font(.title2)
+                .fontWeight(.bold)
+                .padding(.horizontal, 20)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 16) {
+                    ForEach(store.programResults, id: \.id) { program in
+                        Button {
+                            store.send(.programTapped(program))
+                        } label: {
+                            programTile(program)
+                        }
+                        .buttonStyle(.plain)
+                        .focused($focusedItemID, equals: program.id)
+                    }
+                }
+                .padding(.horizontal, 20)
+            }
+        }
+    }
+
+    private func programTile(_ program: EpgProgramRecord) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(program.title)
+                .font(.headline)
+                .lineLimit(2)
+            if let category = program.category {
+                Text(category)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Text(programTimeText(program))
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+        .frame(width: channelWidth, alignment: .leading)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.secondary.opacity(focusedItemID == program.id ? 0.3 : 0.15))
+        )
+    }
+
+    private func programTimeText(_ program: EpgProgramRecord) -> String {
+        let start = Date(timeIntervalSince1970: TimeInterval(program.startTime))
+        let end = Date(timeIntervalSince1970: TimeInterval(program.endTime))
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        let now = Date()
+        if start <= now && end > now {
+            return "Now \u{2022} until \(formatter.string(from: end))"
+        } else {
+            return "\(formatter.string(from: start)) \u{2013} \(formatter.string(from: end))"
         }
     }
 

@@ -152,11 +152,13 @@ final class AppFeatureTests: XCTestCase {
         } withDependencies: {
             $0.channelListClient.searchChannels = { _, _ in [] }
             $0.vodListClient.searchVod = { _, _, _ in [] }
+            $0.epgClient.searchPrograms = { _ in [] }
         }
         store.exhaustivity = .off
         await store.send(.search(.searchQueryChanged("test"))) {
             $0.search.searchQuery = "test"
             $0.search.isSearching = true
+            $0.search.pendingSearchCount = 3
         }
         await store.skipReceivedActions()
     }
