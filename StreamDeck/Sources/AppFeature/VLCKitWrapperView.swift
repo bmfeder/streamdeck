@@ -4,6 +4,25 @@ import VLCKitSPM
 
 /// Wraps VLCMediaPlayer for tvOS/iOS playback of TS, MKV, AVI, RTSP, RTMP, and other formats
 /// that AVPlayer cannot handle natively. Mirrors AVPlayerWrapperView's callback interface.
+/// Focusable UIView subclass that intercepts Siri Remote presses on tvOS.
+class VLCPlayerView: UIView {
+    var onPlayPause: (() -> Void)?
+
+    #if os(tvOS)
+    override var canBecomeFocused: Bool { true }
+
+    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        for press in presses {
+            if press.type == .playPause {
+                onPlayPause?()
+                return
+            }
+        }
+        super.pressesBegan(presses, with: event)
+    }
+    #endif
+}
+
 struct VLCKitWrapperView: UIViewRepresentable {
     let url: URL
     let initialSeekMs: Int?
@@ -13,6 +32,7 @@ struct VLCKitWrapperView: UIViewRepresentable {
     let onStatusChange: @Sendable (PlaybackStatus) -> Void
     let onError: @Sendable (PlayerError) -> Void
     let onTimeUpdate: @Sendable (Int, Int?) -> Void
+    let onPlayPause: () -> Void
 
     init(
         url: URL,
@@ -22,7 +42,8 @@ struct VLCKitWrapperView: UIViewRepresentable {
         seekTargetMs: Int? = nil,
         onStatusChange: @escaping @Sendable (PlaybackStatus) -> Void,
         onError: @escaping @Sendable (PlayerError) -> Void,
-        onTimeUpdate: @escaping @Sendable (Int, Int?) -> Void = { _, _ in }
+        onTimeUpdate: @escaping @Sendable (Int, Int?) -> Void = { _, _ in },
+        onPlayPause: @escaping () -> Void = {}
     ) {
         self.url = url
         self.initialSeekMs = initialSeekMs
@@ -32,11 +53,13 @@ struct VLCKitWrapperView: UIViewRepresentable {
         self.onStatusChange = onStatusChange
         self.onError = onError
         self.onTimeUpdate = onTimeUpdate
+        self.onPlayPause = onPlayPause
     }
 
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView()
+    func makeUIView(context: Context) -> VLCPlayerView {
+        let view = VLCPlayerView()
         view.backgroundColor = .black
+        view.onPlayPause = onPlayPause
 
         let player = VLCMediaPlayer()
         player.drawable = view
@@ -52,7 +75,7 @@ struct VLCKitWrapperView: UIViewRepresentable {
         return view
     }
 
-    func updateUIView(_ view: UIView, context: Context) {
+    func updateUIView(_ view: VLCPlayerView, context: Context) {
         guard let player = context.coordinator.player else { return }
         // If the URL changed, replace the media
         if let currentURL = player.media?.url, currentURL != url {
@@ -79,7 +102,7 @@ struct VLCKitWrapperView: UIViewRepresentable {
         }
     }
 
-    static func dismantleUIView(_ view: UIView, coordinator: Coordinator) {
+    static func dismantleUIView(_ view: VLCPlayerView, coordinator: Coordinator) {
         coordinator.cleanup()
     }
 

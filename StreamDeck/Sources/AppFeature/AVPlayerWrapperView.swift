@@ -3,6 +3,23 @@ import AVKit
 import CoreMedia
 import SwiftUI
 
+/// AVPlayerViewController subclass that intercepts Siri Remote play/pause on tvOS.
+class StreamDeckPlayerViewController: AVPlayerViewController {
+    var onPlayPause: (() -> Void)?
+
+    #if os(tvOS)
+    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        for press in presses {
+            if press.type == .playPause {
+                onPlayPause?()
+                return
+            }
+        }
+        super.pressesBegan(presses, with: event)
+    }
+    #endif
+}
+
 /// Wraps AVPlayerViewController for tvOS with standard transport controls and Siri Remote support.
 struct AVPlayerWrapperView: UIViewControllerRepresentable {
     let url: URL
@@ -13,6 +30,7 @@ struct AVPlayerWrapperView: UIViewControllerRepresentable {
     let onStatusChange: @Sendable (PlaybackStatus) -> Void
     let onError: @Sendable (PlayerError) -> Void
     let onTimeUpdate: @Sendable (Int, Int?) -> Void
+    let onPlayPause: () -> Void
 
     init(
         url: URL,
@@ -22,7 +40,8 @@ struct AVPlayerWrapperView: UIViewControllerRepresentable {
         seekTargetMs: Int? = nil,
         onStatusChange: @escaping @Sendable (PlaybackStatus) -> Void,
         onError: @escaping @Sendable (PlayerError) -> Void,
-        onTimeUpdate: @escaping @Sendable (Int, Int?) -> Void = { _, _ in }
+        onTimeUpdate: @escaping @Sendable (Int, Int?) -> Void = { _, _ in },
+        onPlayPause: @escaping () -> Void = {}
     ) {
         self.url = url
         self.initialSeekMs = initialSeekMs
@@ -32,11 +51,13 @@ struct AVPlayerWrapperView: UIViewControllerRepresentable {
         self.onStatusChange = onStatusChange
         self.onError = onError
         self.onTimeUpdate = onTimeUpdate
+        self.onPlayPause = onPlayPause
     }
 
-    func makeUIViewController(context: Context) -> AVPlayerViewController {
-        let controller = AVPlayerViewController()
+    func makeUIViewController(context: Context) -> StreamDeckPlayerViewController {
+        let controller = StreamDeckPlayerViewController()
         controller.showsPlaybackControls = false
+        controller.onPlayPause = onPlayPause
         let player = AVPlayer(url: url)
         controller.player = player
         context.coordinator.player = player
@@ -47,7 +68,7 @@ struct AVPlayerWrapperView: UIViewControllerRepresentable {
         return controller
     }
 
-    func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {
+    func updateUIViewController(_ controller: StreamDeckPlayerViewController, context: Context) {
         // If the URL changed, replace the player item
         if let currentURL = (controller.player?.currentItem?.asset as? AVURLAsset)?.url,
            currentURL != url {
@@ -80,7 +101,7 @@ struct AVPlayerWrapperView: UIViewControllerRepresentable {
         }
     }
 
-    static func dismantleUIViewController(_ controller: AVPlayerViewController, coordinator: Coordinator) {
+    static func dismantleUIViewController(_ controller: StreamDeckPlayerViewController, coordinator: Coordinator) {
         coordinator.removeObservers()
         controller.player?.pause()
         controller.player = nil

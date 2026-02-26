@@ -86,6 +86,9 @@ public struct VideoPlayerView: View {
                     },
                     onTimeUpdate: { positionMs, durationMs in
                         store.send(.timeUpdated(positionMs: positionMs, durationMs: durationMs))
+                    },
+                    onPlayPause: {
+                        store.send(.playPauseTapped)
                     }
                 )
                 .ignoresSafeArea()
@@ -108,6 +111,9 @@ public struct VideoPlayerView: View {
                     },
                     onTimeUpdate: { positionMs, durationMs in
                         store.send(.timeUpdated(positionMs: positionMs, durationMs: durationMs))
+                    },
+                    onPlayPause: {
+                        store.send(.playPauseTapped)
                     }
                 )
                 .ignoresSafeArea()
