@@ -410,6 +410,7 @@ final class AppFeatureTests: XCTestCase {
             $0.userDefaultsClient.setString = { value, key in
                 saved.withValue { $0[key] = value }
             }
+            $0.cloudKitSyncClient.pushPreferences = { _ in }
         }
 
         await store.send(.settings(.preferredEngineChanged(.vlcKit))) {
@@ -426,6 +427,7 @@ final class AppFeatureTests: XCTestCase {
             $0.userDefaultsClient.setString = { value, key in
                 saved.withValue { $0[key] = value }
             }
+            $0.cloudKitSyncClient.pushPreferences = { _ in }
         }
 
         await store.send(.settings(.bufferTimeoutChanged(20))) {

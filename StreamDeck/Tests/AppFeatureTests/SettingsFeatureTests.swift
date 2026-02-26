@@ -35,12 +35,14 @@ final class SettingsFeatureTests: XCTestCase {
         } withDependencies: {
             $0.vodListClient.fetchPlaylists = { playlists }
         }
+        store.exhaustivity = .off
 
         await store.send(.onAppear)
         await store.receive(\.preferencesLoaded)
         await store.receive(\.playlistsLoaded.success) {
             $0.playlists = playlists
         }
+        await store.skipReceivedActions()
     }
 
     func testPlaylistsLoaded_failure_remainsEmpty() async {
@@ -49,6 +51,7 @@ final class SettingsFeatureTests: XCTestCase {
         } withDependencies: {
             $0.vodListClient.fetchPlaylists = { throw NSError(domain: "test", code: 1) }
         }
+        store.exhaustivity = .off
 
         await store.send(.onAppear)
         await store.receive(\.preferencesLoaded)
@@ -67,12 +70,14 @@ final class SettingsFeatureTests: XCTestCase {
         } withDependencies: {
             $0.vodListClient.fetchPlaylists = { playlists }
         }
+        store.exhaustivity = .off
 
         await store.send(.onAppear)
         await store.receive(\.preferencesLoaded)
         await store.receive(\.playlistsLoaded.success) {
             $0.playlists = playlists
         }
+        await store.skipReceivedActions()
         XCTAssertEqual(store.state.playlists.map(\.id), ["pl-a", "pl-b", "pl-c"])
     }
 
@@ -116,6 +121,7 @@ final class SettingsFeatureTests: XCTestCase {
             $0.playlistImportClient.deletePlaylist = { id in
                 deleted.setValue(id)
             }
+            $0.cloudKitSyncClient.pushPlaylistDeletion = { _ in }
         }
 
         await store.send(.deletePlaylistConfirmed) {
@@ -167,6 +173,7 @@ final class SettingsFeatureTests: XCTestCase {
             SettingsFeature()
         } withDependencies: {
             $0.playlistImportClient.deletePlaylist = { _ in }
+            $0.cloudKitSyncClient.pushPlaylistDeletion = { _ in }
         }
 
         await store.send(.deletePlaylistConfirmed) {

@@ -57,6 +57,7 @@ public struct LiveTVFeature {
 
     @Dependency(\.channelListClient) var channelListClient
     @Dependency(\.epgClient) var epgClient
+    @Dependency(\.cloudKitSyncClient) var cloudKitSyncClient
 
     public init() {}
 
@@ -198,6 +199,13 @@ public struct LiveTVFeature {
                         groups: grouped.groups,
                         channelsByGroup: updatedDict
                     )
+                }
+                let channel = state.displayedChannels.first { $0.id == channelID }
+                let sync = cloudKitSyncClient
+                if let channel {
+                    return .run { _ in
+                        try? await sync.pushFavorite(channel.id, channel.playlistID, channel.isFavorite)
+                    }
                 }
                 return .none
 

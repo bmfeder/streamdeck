@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Database
+import Repositories
 import SwiftUI
 
 @Reducer
@@ -31,6 +32,7 @@ public struct AppFeature {
         case tabSelected(Tab)
         case acceptDisclaimerTapped
         case stalePlaylistsRefreshed
+        case cloudKitPullCompleted(Result<SyncPullResult, Error>)
         case miniBarTapped
         case miniBarDismissed
 
@@ -48,6 +50,7 @@ public struct AppFeature {
     @Dependency(\.userDefaultsClient) var userDefaultsClient
     @Dependency(\.vodListClient) var vodListClient
     @Dependency(\.playlistImportClient) var playlistImportClient
+    @Dependency(\.cloudKitSyncClient) var cloudKitSyncClient
 
     public init() {}
 
@@ -70,19 +73,32 @@ public struct AppFeature {
                 )
                 let vod = vodListClient
                 let importClient = playlistImportClient
-                return .run { send in
-                    let playlists = try await vod.fetchPlaylists()
-                    let now = Int(Date().timeIntervalSince1970)
-                    for playlist in playlists {
-                        let lastSync = playlist.lastSync ?? 0
-                        let staleAfter = lastSync + (playlist.refreshHrs * 3600)
-                        guard staleAfter < now else { continue }
-                        _ = try? await importClient.refreshPlaylist(playlist.id)
+                let sync = cloudKitSyncClient
+                return .merge(
+                    .run { send in
+                        let playlists = try await vod.fetchPlaylists()
+                        let now = Int(Date().timeIntervalSince1970)
+                        for playlist in playlists {
+                            let lastSync = playlist.lastSync ?? 0
+                            let staleAfter = lastSync + (playlist.refreshHrs * 3600)
+                            guard staleAfter < now else { continue }
+                            _ = try? await importClient.refreshPlaylist(playlist.id)
+                        }
+                        await send(.stalePlaylistsRefreshed)
+                    } catch: { _, _ in },
+                    .run { send in
+                        guard await sync.isAvailable() else { return }
+                        let result = try await sync.pullAll()
+                        await send(.cloudKitPullCompleted(.success(result)))
+                    } catch: { error, send in
+                        await send(.cloudKitPullCompleted(.failure(error)))
                     }
-                    await send(.stalePlaylistsRefreshed)
-                } catch: { _, _ in }
+                )
 
             case .stalePlaylistsRefreshed:
+                return .none
+
+            case .cloudKitPullCompleted:
                 return .none
             case let .tabSelected(tab):
                 state.selectedTab = tab

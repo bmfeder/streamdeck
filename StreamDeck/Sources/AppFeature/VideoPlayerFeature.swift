@@ -118,6 +118,7 @@ public struct VideoPlayerFeature {
     @Dependency(\.watchProgressClient) var watchProgressClient
     @Dependency(\.channelListClient) var channelListClient
     @Dependency(\.epgClient) var epgClient
+    @Dependency(\.cloudKitSyncClient) var cloudKitSyncClient
     @Dependency(\.userDefaultsClient) var userDefaultsClient
     @Dependency(\.continuousClock) var clock
     @Dependency(\.dismiss) var dismiss
@@ -666,12 +667,25 @@ public struct VideoPlayerFeature {
     private func saveProgressEffect(state: State) -> Effect<Action> {
         guard state.currentPositionMs > 0 else { return .none }
         let client = watchProgressClient
+        let sync = cloudKitSyncClient
         let contentID = state.item.contentID
         let playlistID = state.item.playlistID
         let position = state.currentPositionMs
         let duration = state.currentDurationMs
-        return .run { _ in
-            try? await client.saveProgress(contentID, playlistID, position, duration)
-        }
+        return .merge(
+            .run { _ in
+                try? await client.saveProgress(contentID, playlistID, position, duration)
+            },
+            .run { _ in
+                let record = WatchProgressRecord(
+                    contentID: contentID,
+                    playlistID: playlistID,
+                    positionMs: position,
+                    durationMs: duration,
+                    updatedAt: Int(Date().timeIntervalSince1970)
+                )
+                try? await sync.pushWatchProgress(record)
+            }
+        )
     }
 }

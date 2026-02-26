@@ -22,6 +22,11 @@ public struct SettingsFeature {
         // Clear watch history
         public var showClearHistoryConfirmation: Bool = false
 
+        // CloudKit sync
+        public var isCloudKitAvailable: Bool = false
+        public var isSyncing: Bool = false
+        public var lastSyncResult: SyncPullResult?
+
         public init() {}
     }
 
@@ -56,6 +61,10 @@ public struct SettingsFeature {
         case clearHistoryConfirmed
         case clearHistoryCancelled
         case historyCleared(Result<Void, Error>)
+        // CloudKit sync
+        case cloudKitStatusLoaded(Bool)
+        case syncNowTapped
+        case syncCompleted(Result<SyncPullResult, Error>)
     }
 
     @Dependency(\.epgClient) var epgClient
@@ -63,6 +72,7 @@ public struct SettingsFeature {
     @Dependency(\.playlistImportClient) var playlistImportClient
     @Dependency(\.userDefaultsClient) var userDefaultsClient
     @Dependency(\.watchProgressClient) var watchProgressClient
+    @Dependency(\.cloudKitSyncClient) var cloudKitSyncClient
 
     public init() {}
 
@@ -72,6 +82,7 @@ public struct SettingsFeature {
             case .onAppear:
                 let defaults = userDefaultsClient
                 let client = vodListClient
+                let sync = cloudKitSyncClient
                 let prefs = UserPreferences.load(from: defaults)
                 return .merge(
                     .send(.preferencesLoaded(prefs)),
@@ -80,6 +91,10 @@ public struct SettingsFeature {
                         await send(.playlistsLoaded(.success(playlists)))
                     } catch: { error, send in
                         await send(.playlistsLoaded(.failure(error)))
+                    },
+                    .run { send in
+                        let available = await sync.isAvailable()
+                        await send(.cloudKitStatusLoaded(available))
                     }
                 )
 
@@ -112,7 +127,10 @@ public struct SettingsFeature {
 
             case let .playlistDeleted(.success(id)):
                 state.playlists.removeAll { $0.id == id }
-                return .none
+                let sync = cloudKitSyncClient
+                return .run { _ in
+                    try? await sync.pushPlaylistDeletion(id)
+                }
 
             case .playlistDeleted(.failure):
                 return .none
@@ -159,19 +177,19 @@ public struct SettingsFeature {
                 state.preferences.preferredEngine = engine
                 let defaults = userDefaultsClient
                 state.preferences.save(to: defaults)
-                return .none
+                return pushCurrentPreferences(state.preferences)
 
             case let .resumePlaybackToggled(enabled):
                 state.preferences.resumePlaybackEnabled = enabled
                 let defaults = userDefaultsClient
                 state.preferences.save(to: defaults)
-                return .none
+                return pushCurrentPreferences(state.preferences)
 
             case let .bufferTimeoutChanged(seconds):
                 state.preferences.bufferTimeoutSeconds = seconds
                 let defaults = userDefaultsClient
                 state.preferences.save(to: defaults)
-                return .none
+                return pushCurrentPreferences(state.preferences)
 
             // Edit playlist
             case let .editPlaylistTapped(playlist):
@@ -247,6 +265,30 @@ public struct SettingsFeature {
             case .historyCleared:
                 return .none
 
+            // CloudKit sync
+            case let .cloudKitStatusLoaded(available):
+                state.isCloudKitAvailable = available
+                return .none
+
+            case .syncNowTapped:
+                state.isSyncing = true
+                let sync = cloudKitSyncClient
+                return .run { send in
+                    let result = try await sync.pullAll()
+                    await send(.syncCompleted(.success(result)))
+                } catch: { error, send in
+                    await send(.syncCompleted(.failure(error)))
+                }
+
+            case let .syncCompleted(.success(result)):
+                state.isSyncing = false
+                state.lastSyncResult = result
+                return .none
+
+            case .syncCompleted(.failure):
+                state.isSyncing = false
+                return .none
+
             case .addPlaylist(.presented(.delegate(.importCompleted(playlistID: let playlistID)))):
                 let epg = epgClient
                 let vod = vodListClient
@@ -266,6 +308,19 @@ public struct SettingsFeature {
         }
         .ifLet(\.$addPlaylist, action: \.addPlaylist) {
             AddPlaylistFeature()
+        }
+    }
+
+    private func pushCurrentPreferences(_ prefs: UserPreferences) -> Effect<Action> {
+        let sync = cloudKitSyncClient
+        let syncablePrefs = SyncablePreferences(
+            preferredEngine: prefs.preferredEngine.rawValue,
+            resumePlaybackEnabled: prefs.resumePlaybackEnabled,
+            bufferTimeoutSeconds: prefs.bufferTimeoutSeconds,
+            updatedAt: Int(Date().timeIntervalSince1970)
+        )
+        return .run { _ in
+            try? await sync.pushPreferences(syncablePrefs)
         }
     }
 }
@@ -345,6 +400,33 @@ public struct SettingsView: View {
                         store.send(.clearHistoryTapped)
                     } label: {
                         Label("Clear Watch History", systemImage: "trash")
+                    }
+                }
+                Section("iCloud Sync") {
+                    HStack {
+                        Image(systemName: store.isCloudKitAvailable ? "checkmark.icloud" : "xmark.icloud")
+                            .foregroundStyle(store.isCloudKitAvailable ? .green : .secondary)
+                        Text(store.isCloudKitAvailable ? "iCloud Available" : "iCloud Unavailable")
+                    }
+                    Button {
+                        store.send(.syncNowTapped)
+                    } label: {
+                        HStack {
+                            Label("Sync Now", systemImage: "arrow.triangle.2.circlepath")
+                            Spacer()
+                            if store.isSyncing {
+                                ProgressView()
+                                    #if os(tvOS)
+                                    .scaleEffect(0.8)
+                                    #endif
+                            }
+                        }
+                    }
+                    .disabled(!store.isCloudKitAvailable || store.isSyncing)
+                    if let result = store.lastSyncResult {
+                        Text("\(result.playlistsUpdated) playlists, \(result.favoritesUpdated) favorites, \(result.progressUpdated) progress synced")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 Section("About") {

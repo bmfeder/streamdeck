@@ -102,6 +102,7 @@ final class FavoritesFeatureTests: XCTestCase {
             FavoritesFeature()
         } withDependencies: {
             $0.channelListClient.toggleFavorite = { _ in }
+            $0.cloudKitSyncClient.pushFavorite = { _, _, _ in }
         }
 
         await store.send(.toggleFavoriteTapped("ch-1"))

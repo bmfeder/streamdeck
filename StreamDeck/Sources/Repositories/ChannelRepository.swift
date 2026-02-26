@@ -298,6 +298,15 @@ public struct ChannelRepository: Sendable {
         }
     }
 
+    /// Sets the favorite status of a channel to a specific value.
+    public func setFavorite(id: String, isFavorite: Bool) throws {
+        try dbManager.dbQueue.write { db in
+            guard var record = try ChannelRecord.fetchOne(db, key: id) else { return }
+            record.isFavorite = isFavorite
+            try record.update(db)
+        }
+    }
+
     // MARK: - Private Helpers
 
     /// Soft-deletes active channels not in the given set. For use inside a write transaction.
