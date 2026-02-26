@@ -36,7 +36,6 @@ public struct VideoPlayerView: View {
         .onAppear { store.send(.onAppear) }
         .onDisappear { store.send(.onDisappear) }
         #if os(tvOS)
-        .onPlayPauseCommand { store.send(.toggleOverlayTapped) }
         .onMoveCommand { direction in
             switch direction {
             case .down:
@@ -46,6 +45,8 @@ public struct VideoPlayerView: View {
             case .up:
                 if store.isSwitcherVisible {
                     store.send(.hideSwitcher)
+                } else {
+                    store.send(.toggleOverlayTapped)
                 }
             default:
                 break
@@ -170,12 +171,14 @@ public struct VideoPlayerView: View {
             ProgressView()
                 .scaleEffect(1.5)
                 .tint(.white)
+                .allowsHitTesting(false)
 
         case .loading:
             bufferingView
 
         case let .retrying(attempt, engine):
             retryingView(attempt: attempt, engine: engine)
+                .allowsHitTesting(false)
 
         case .failed:
             failedView

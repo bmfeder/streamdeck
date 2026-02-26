@@ -87,7 +87,7 @@ public struct MoviesFeature {
                 return loadPlaylists(&state)
 
             case let .playlistsLoaded(.success(playlists)):
-                state.playlists = playlists
+                state.playlists = playlists.filter { $0.type != "emby" }
                 if let first = playlists.first {
                     state.selectedPlaylistID = first.id
                     return .merge(
