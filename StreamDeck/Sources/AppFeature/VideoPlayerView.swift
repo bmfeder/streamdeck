@@ -164,10 +164,13 @@ public struct VideoPlayerView: View {
     @ViewBuilder
     private var statusOverlay: some View {
         switch store.status {
-        case .idle, .routing, .loading:
+        case .idle, .routing:
             ProgressView()
                 .scaleEffect(1.5)
                 .tint(.white)
+
+        case .loading:
+            bufferingView
 
         case let .retrying(attempt, engine):
             retryingView(attempt: attempt, engine: engine)
@@ -252,6 +255,40 @@ public struct VideoPlayerView: View {
         case .networkLost: return "Network connection lost."
         case .decodingFailed: return "Unable to decode this stream format."
         case let .unknown(msg): return msg
+        }
+    }
+
+    // MARK: - Buffering View
+
+    private var bufferingView: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+                .scaleEffect(1.5)
+                .tint(.white)
+
+            if store.bufferingElapsedSeconds >= 10 {
+                Text("Stream is slow...")
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.8))
+
+                if store.bufferingElapsedSeconds >= 30 {
+                    HStack(spacing: 16) {
+                        Button("Retry") {
+                            store.send(.retryTapped)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        Button("Try Other Player") {
+                            store.send(.tryAlternateEngineTapped)
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+            } else if store.bufferingElapsedSeconds > 0 {
+                Text("\(store.bufferingElapsedSeconds)s")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.5))
+                    .monospacedDigit()
+            }
         }
     }
 

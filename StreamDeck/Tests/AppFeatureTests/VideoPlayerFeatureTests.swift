@@ -152,6 +152,7 @@ final class VideoPlayerFeatureTests: XCTestCase {
         } withDependencies: {
             $0.continuousClock = ImmediateClock()
         }
+        store.exhaustivity = .off
 
         await store.send(.streamRouted(route)) {
             $0.streamRoute = route
@@ -161,6 +162,7 @@ final class VideoPlayerFeatureTests: XCTestCase {
         }
 
         await store.receive(\.overlayAutoHideExpired)
+        await store.skipReceivedActions()
     }
 
     // MARK: - Player Status Changes
@@ -1125,6 +1127,55 @@ final class VideoPlayerFeatureTests: XCTestCase {
 
         await store.send(.overlayAutoHideExpired)
         // Overlay stays visible because picker is open
+    }
+
+    // MARK: - Buffering Feedback
+
+    func testBufferingTimerTick_incrementsElapsed() async {
+        var state = VideoPlayerFeature.State(channel: makeChannel())
+        state.status = .loading
+        state.bufferingElapsedSeconds = 5
+
+        let store = TestStore(initialState: state) {
+            VideoPlayerFeature()
+        }
+
+        await store.send(.bufferingTimerTick) {
+            $0.bufferingElapsedSeconds = 6
+        }
+    }
+
+    func testBufferingTimerTick_nonLoading_noOp() async {
+        var state = VideoPlayerFeature.State(channel: makeChannel())
+        state.status = .playing
+        state.bufferingElapsedSeconds = 5
+
+        let store = TestStore(initialState: state) {
+            VideoPlayerFeature()
+        }
+
+        await store.send(.bufferingTimerTick)
+    }
+
+    func testPlayerPlaying_resetsBufferingElapsed() async {
+        var state = VideoPlayerFeature.State(channel: makeChannel())
+        state.status = .loading
+        state.bufferingElapsedSeconds = 15
+
+        let store = TestStore(initialState: state) {
+            VideoPlayerFeature()
+        } withDependencies: {
+            $0.continuousClock = ImmediateClock()
+        }
+        store.exhaustivity = .off
+
+        await store.send(.playerStatusChanged(.playing)) {
+            $0.status = .playing
+            $0.retryCount = 0
+            $0.bufferingElapsedSeconds = 0
+        }
+
+        await store.skipReceivedActions()
     }
 
     // MARK: - Channel Number Entry

@@ -37,6 +37,9 @@ public struct VideoPlayerFeature {
         public var isNumberEntryVisible: Bool = false
         public var numberEntryResult: NumberEntryResult?
 
+        // Buffering feedback
+        public var bufferingElapsedSeconds: Int = 0
+
         public static let maxRetriesPerEngine: Int = 3
 
         public init(channel: ChannelRecord) {
@@ -95,6 +98,8 @@ public struct VideoPlayerFeature {
         case numberEntryLookupResult(ChannelRecord?)
         case numberEntryConfirmed
         case numberEntryCancelled
+        // Buffering feedback
+        case bufferingTimerTick
         case delegate(Delegate)
 
         @CasePathable
@@ -121,6 +126,7 @@ public struct VideoPlayerFeature {
         case sleepTimer
         case sleepTimerTick
         case numberEntryTimer
+        case bufferingTimer
     }
 
     public var body: some ReducerOf<Self> {
@@ -160,7 +166,8 @@ public struct VideoPlayerFeature {
                     .cancel(id: CancelID.switcherTimer),
                     .cancel(id: CancelID.sleepTimer),
                     .cancel(id: CancelID.sleepTimerTick),
-                    .cancel(id: CancelID.numberEntryTimer)
+                    .cancel(id: CancelID.numberEntryTimer),
+                    .cancel(id: CancelID.bufferingTimer)
                 )
 
             case .dismissTapped:
@@ -177,14 +184,22 @@ public struct VideoPlayerFeature {
                 state.streamRoute = route
                 state.activeEngine = route.recommendedEngine
                 state.status = .loading
+                state.bufferingElapsedSeconds = 0
                 state.playerCommand = .play(url: route.url, engine: route.recommendedEngine)
-                return startOverlayTimer()
+                return .merge(
+                    startOverlayTimer(),
+                    startBufferingTimer()
+                )
 
             case let .playerStatusChanged(status):
                 state.status = status
                 if status == .playing {
                     state.retryCount = 0
-                    return startProgressTimer()
+                    state.bufferingElapsedSeconds = 0
+                    return .merge(
+                        startProgressTimer(),
+                        .cancel(id: CancelID.bufferingTimer)
+                    )
                 }
                 return .none
 
@@ -508,6 +523,14 @@ public struct VideoPlayerFeature {
                 state.numberEntryResult = nil
                 return .cancel(id: CancelID.numberEntryTimer)
 
+            // MARK: - Buffering Feedback
+
+            case .bufferingTimerTick:
+                if state.status == .loading {
+                    state.bufferingElapsedSeconds += 1
+                }
+                return .none
+
             case .delegate:
                 return .none
             }
@@ -576,6 +599,16 @@ public struct VideoPlayerFeature {
             }
         }
         .cancellable(id: CancelID.sleepTimerTick, cancelInFlight: true)
+    }
+
+    private func startBufferingTimer() -> Effect<Action> {
+        let bufClock = clock
+        return .run { send in
+            for await _ in bufClock.timer(interval: .seconds(1)) {
+                await send(.bufferingTimerTick)
+            }
+        }
+        .cancellable(id: CancelID.bufferingTimer, cancelInFlight: true)
     }
 
     private func startNumberEntryTimer() -> Effect<Action> {

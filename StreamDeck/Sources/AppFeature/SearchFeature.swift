@@ -324,6 +324,10 @@ public struct SearchView: View {
             Text("No results for \"\(store.searchQuery)\"")
                 .font(.title3)
                 .foregroundStyle(.secondary)
+            Text("Check your spelling, try a shorter query, or browse by category.")
+                .font(.subheadline)
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
         }
         .padding()
     }
