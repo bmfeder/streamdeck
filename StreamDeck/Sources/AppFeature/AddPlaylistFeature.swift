@@ -323,6 +323,14 @@ public struct AddPlaylistView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { store.send(.dismissTapped) }
                 }
+                ToolbarItem(placement: .confirmationAction) {
+                    if store.isImporting {
+                        ProgressView()
+                    } else {
+                        Button("Import") { store.send(.importButtonTapped) }
+                            .disabled(!store.isFormValid)
+                    }
+                }
             }
         }
     }
