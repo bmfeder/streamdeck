@@ -298,4 +298,169 @@ final class SettingsFeatureTests: XCTestCase {
             $0.addPlaylist = AddPlaylistFeature.State(sourceType: .emby)
         }
     }
+
+    // MARK: - Edit Playlist
+
+    func testEditPlaylistTapped_populatesFields() async {
+        let playlist = makePlaylist(id: "pl-1", name: "My Playlist")
+
+        let store = TestStore(initialState: SettingsFeature.State()) {
+            SettingsFeature()
+        }
+
+        await store.send(.editPlaylistTapped(playlist)) {
+            $0.editingPlaylist = playlist
+            $0.editName = "My Playlist"
+            $0.editEpgURL = ""
+            $0.editRefreshHrs = 24
+        }
+    }
+
+    func testEditPlaylistTapped_withEpgURL_populatesEpgField() async {
+        var playlist = makePlaylist(id: "pl-1", name: "My Playlist")
+        playlist.epgURL = "http://example.com/epg.xml"
+        playlist.refreshHrs = 6
+
+        let store = TestStore(initialState: SettingsFeature.State()) {
+            SettingsFeature()
+        }
+
+        await store.send(.editPlaylistTapped(playlist)) {
+            $0.editingPlaylist = playlist
+            $0.editName = "My Playlist"
+            $0.editEpgURL = "http://example.com/epg.xml"
+            $0.editRefreshHrs = 6
+        }
+    }
+
+    func testEditNameChanged_updatesField() async {
+        var state = SettingsFeature.State()
+        state.editingPlaylist = makePlaylist()
+
+        let store = TestStore(initialState: state) {
+            SettingsFeature()
+        }
+
+        await store.send(.editNameChanged("New Name")) {
+            $0.editName = "New Name"
+        }
+    }
+
+    func testEditRefreshHrsChanged_updatesField() async {
+        var state = SettingsFeature.State()
+        state.editingPlaylist = makePlaylist()
+
+        let store = TestStore(initialState: state) {
+            SettingsFeature()
+        }
+
+        await store.send(.editRefreshHrsChanged(6)) {
+            $0.editRefreshHrs = 6
+        }
+    }
+
+    func testEditPlaylistSaved_updatesAndReloads() async {
+        let playlist = makePlaylist(id: "pl-1", name: "Old Name")
+        var state = SettingsFeature.State()
+        state.playlists = [playlist]
+        state.editingPlaylist = playlist
+        state.editName = "New Name"
+        state.editEpgURL = "http://example.com/epg.xml"
+        state.editRefreshHrs = 12
+
+        let updated = LockIsolated<PlaylistRecord?>(nil)
+        let updatedPlaylist = makePlaylist(id: "pl-1", name: "New Name")
+
+        let store = TestStore(initialState: state) {
+            SettingsFeature()
+        } withDependencies: {
+            $0.playlistImportClient.updatePlaylist = { record in
+                updated.setValue(record)
+            }
+            $0.vodListClient.fetchPlaylists = { [updatedPlaylist] }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.editPlaylistSaved) {
+            $0.editingPlaylist = nil
+        }
+
+        await store.skipReceivedActions()
+
+        XCTAssertEqual(updated.value?.name, "New Name")
+        XCTAssertEqual(updated.value?.epgURL, "http://example.com/epg.xml")
+        XCTAssertEqual(updated.value?.refreshHrs, 12)
+    }
+
+    func testEditPlaylistSaved_emptyName_noOp() async {
+        let playlist = makePlaylist(id: "pl-1")
+        var state = SettingsFeature.State()
+        state.editingPlaylist = playlist
+        state.editName = "   "
+
+        let store = TestStore(initialState: state) {
+            SettingsFeature()
+        }
+
+        await store.send(.editPlaylistSaved)
+    }
+
+    func testEditPlaylistCancelled_clearsState() async {
+        var state = SettingsFeature.State()
+        state.editingPlaylist = makePlaylist()
+        state.editName = "Changed"
+
+        let store = TestStore(initialState: state) {
+            SettingsFeature()
+        }
+
+        await store.send(.editPlaylistCancelled) {
+            $0.editingPlaylist = nil
+        }
+    }
+
+    // MARK: - Clear Watch History
+
+    func testClearHistoryTapped_showsConfirmation() async {
+        let store = TestStore(initialState: SettingsFeature.State()) {
+            SettingsFeature()
+        }
+
+        await store.send(.clearHistoryTapped) {
+            $0.showClearHistoryConfirmation = true
+        }
+    }
+
+    func testClearHistoryConfirmed_callsClearAll() async {
+        var state = SettingsFeature.State()
+        state.showClearHistoryConfirmation = true
+
+        let cleared = LockIsolated(false)
+        let store = TestStore(initialState: state) {
+            SettingsFeature()
+        } withDependencies: {
+            $0.watchProgressClient.clearAll = {
+                cleared.setValue(true)
+            }
+        }
+
+        await store.send(.clearHistoryConfirmed) {
+            $0.showClearHistoryConfirmation = false
+        }
+        await store.receive(\.historyCleared)
+        XCTAssertTrue(cleared.value)
+    }
+
+    func testClearHistoryCancelled_hidesConfirmation() async {
+        var state = SettingsFeature.State()
+        state.showClearHistoryConfirmation = true
+
+        let store = TestStore(initialState: state) {
+            SettingsFeature()
+        }
+
+        await store.send(.clearHistoryCancelled) {
+            $0.showClearHistoryConfirmation = false
+        }
+    }
 }

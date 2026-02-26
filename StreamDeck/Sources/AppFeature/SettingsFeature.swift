@@ -13,6 +13,15 @@ public struct SettingsFeature {
         public var preferences: UserPreferences = UserPreferences()
         @Presents public var addPlaylist: AddPlaylistFeature.State?
 
+        // Edit playlist
+        public var editingPlaylist: PlaylistRecord?
+        public var editName: String = ""
+        public var editEpgURL: String = ""
+        public var editRefreshHrs: Int = 24
+
+        // Clear watch history
+        public var showClearHistoryConfirmation: Bool = false
+
         public init() {}
     }
 
@@ -34,12 +43,26 @@ public struct SettingsFeature {
         case preferredEngineChanged(PreferredPlayerEngine)
         case resumePlaybackToggled(Bool)
         case bufferTimeoutChanged(Int)
+        // Edit playlist
+        case editPlaylistTapped(PlaylistRecord)
+        case editNameChanged(String)
+        case editEpgURLChanged(String)
+        case editRefreshHrsChanged(Int)
+        case editPlaylistSaved
+        case editPlaylistCancelled
+        case playlistUpdated(Result<String, Error>)
+        // Clear watch history
+        case clearHistoryTapped
+        case clearHistoryConfirmed
+        case clearHistoryCancelled
+        case historyCleared(Result<Void, Error>)
     }
 
     @Dependency(\.epgClient) var epgClient
     @Dependency(\.vodListClient) var vodListClient
     @Dependency(\.playlistImportClient) var playlistImportClient
     @Dependency(\.userDefaultsClient) var userDefaultsClient
+    @Dependency(\.watchProgressClient) var watchProgressClient
 
     public init() {}
 
@@ -150,6 +173,80 @@ public struct SettingsFeature {
                 state.preferences.save(to: defaults)
                 return .none
 
+            // Edit playlist
+            case let .editPlaylistTapped(playlist):
+                state.editingPlaylist = playlist
+                state.editName = playlist.name
+                state.editEpgURL = playlist.epgURL ?? ""
+                state.editRefreshHrs = playlist.refreshHrs
+                return .none
+
+            case let .editNameChanged(name):
+                state.editName = name
+                return .none
+
+            case let .editEpgURLChanged(url):
+                state.editEpgURL = url
+                return .none
+
+            case let .editRefreshHrsChanged(hrs):
+                state.editRefreshHrs = hrs
+                return .none
+
+            case .editPlaylistSaved:
+                guard var playlist = state.editingPlaylist else { return .none }
+                let trimmedName = state.editName.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmedName.isEmpty else { return .none }
+                playlist.name = trimmedName
+                playlist.epgURL = state.editEpgURL.isEmpty ? nil : state.editEpgURL
+                playlist.refreshHrs = state.editRefreshHrs
+                state.editingPlaylist = nil
+                let client = playlistImportClient
+                let vod = vodListClient
+                let updatedPlaylist = playlist
+                return .run { send in
+                    try await client.updatePlaylist(updatedPlaylist)
+                    await send(.playlistUpdated(.success(updatedPlaylist.id)))
+                } catch: { error, send in
+                    await send(.playlistUpdated(.failure(error)))
+                }
+
+            case .editPlaylistCancelled:
+                state.editingPlaylist = nil
+                return .none
+
+            case .playlistUpdated(.success):
+                let client = vodListClient
+                return .run { send in
+                    let playlists = try await client.fetchPlaylists()
+                    await send(.playlistsLoaded(.success(playlists)))
+                } catch: { _, _ in }
+
+            case .playlistUpdated(.failure):
+                return .none
+
+            // Clear watch history
+            case .clearHistoryTapped:
+                state.showClearHistoryConfirmation = true
+                return .none
+
+            case .clearHistoryConfirmed:
+                state.showClearHistoryConfirmation = false
+                let client = watchProgressClient
+                return .run { send in
+                    try await client.clearAll()
+                    await send(.historyCleared(.success(())))
+                } catch: { error, send in
+                    await send(.historyCleared(.failure(error)))
+                }
+
+            case .clearHistoryCancelled:
+                state.showClearHistoryConfirmation = false
+                return .none
+
+            case .historyCleared:
+                return .none
+
             case .addPlaylist(.presented(.delegate(.importCompleted(playlistID: let playlistID)))):
                 let epg = epgClient
                 let vod = vodListClient
@@ -188,7 +285,12 @@ public struct SettingsView: View {
                 if !store.playlists.isEmpty {
                     Section("My Playlists") {
                         ForEach(store.playlists, id: \.id) { playlist in
-                            playlistRow(playlist)
+                            Button {
+                                store.send(.editPlaylistTapped(playlist))
+                            } label: {
+                                playlistRow(playlist)
+                            }
+                            .buttonStyle(.plain)
                         }
                         .onDelete { indexSet in
                             if let index = indexSet.first {
@@ -238,6 +340,13 @@ public struct SettingsView: View {
                         Text("30 seconds").tag(30)
                     }
                 }
+                Section("Data") {
+                    Button(role: .destructive) {
+                        store.send(.clearHistoryTapped)
+                    } label: {
+                        Label("Clear Watch History", systemImage: "trash")
+                    }
+                }
                 Section("About") {
                     LabeledContent("Version", value: "0.1.0")
                     LabeledContent("Build", value: "1")
@@ -266,6 +375,85 @@ public struct SettingsView: View {
                     Text("Delete \"\(playlist.name)\"? This will remove all channels and content from this source.")
                 }
             }
+            .alert(
+                "Clear Watch History",
+                isPresented: Binding(
+                    get: { store.showClearHistoryConfirmation },
+                    set: { if !$0 { store.send(.clearHistoryCancelled) } }
+                )
+            ) {
+                Button("Clear", role: .destructive) {
+                    store.send(.clearHistoryConfirmed)
+                }
+                Button("Cancel", role: .cancel) {
+                    store.send(.clearHistoryCancelled)
+                }
+            } message: {
+                Text("This will remove all watch progress and continue watching data. This cannot be undone.")
+            }
+            .sheet(
+                isPresented: Binding(
+                    get: { store.editingPlaylist != nil },
+                    set: { if !$0 { store.send(.editPlaylistCancelled) } }
+                )
+            ) {
+                editPlaylistSheet
+            }
+        }
+    }
+
+    // MARK: - Edit Playlist Sheet
+
+    private var editPlaylistSheet: some View {
+        NavigationStack {
+            Form {
+                Section("Name") {
+                    TextField(
+                        "Playlist Name",
+                        text: $store.editName.sending(\.editNameChanged)
+                    )
+                }
+                Section("EPG Guide URL") {
+                    TextField(
+                        "https://example.com/epg.xml",
+                        text: $store.editEpgURL.sending(\.editEpgURLChanged)
+                    )
+                    #if os(iOS)
+                    .keyboardType(.URL)
+                    .autocapitalization(.none)
+                    #endif
+                }
+                Section("Auto-Refresh") {
+                    Picker(
+                        "Refresh Interval",
+                        selection: $store.editRefreshHrs.sending(\.editRefreshHrsChanged)
+                    ) {
+                        Text("Every hour").tag(1)
+                        Text("Every 6 hours").tag(6)
+                        Text("Every 12 hours").tag(12)
+                        Text("Every 24 hours").tag(24)
+                        Text("Every 48 hours").tag(48)
+                        Text("Manual only").tag(0)
+                    }
+                }
+            }
+            .navigationTitle("Edit Playlist")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        store.send(.editPlaylistCancelled)
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        store.send(.editPlaylistSaved)
+                    }
+                    .disabled(store.editName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
         }
     }
 
@@ -275,6 +463,7 @@ public struct SettingsView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(playlist.name)
                     .font(.body)
+                    .foregroundStyle(.primary)
                 if let lastSync = playlist.lastSync {
                     Text("Synced \(formattedDate(lastSync))")
                         .font(.caption)
@@ -303,6 +492,9 @@ public struct SettingsView: View {
                 .background(typeColor(playlist.type).opacity(0.15))
                 .foregroundStyle(typeColor(playlist.type))
                 .clipShape(RoundedRectangle(cornerRadius: 6))
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
         }
     }
 

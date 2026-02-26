@@ -35,6 +35,9 @@ public struct PlaylistImportClient: Sendable {
 
     /// Refresh an existing playlist by re-downloading and re-importing content.
     public var refreshPlaylist: @Sendable (_ id: String) async throws -> PlaylistImportResult
+
+    /// Update playlist metadata (name, EPG URL, refresh interval).
+    public var updatePlaylist: @Sendable (_ record: PlaylistRecord) async throws -> Void
 }
 
 // MARK: - Dependency Registration
@@ -73,6 +76,9 @@ extension PlaylistImportClient: DependencyKey {
             },
             refreshPlaylist: { id in
                 try await service.refreshPlaylist(id: id)
+            },
+            updatePlaylist: { record in
+                try playlistRepo.update(record)
             }
         )
     }
@@ -83,7 +89,8 @@ extension PlaylistImportClient: DependencyKey {
             importXtream: unimplemented("PlaylistImportClient.importXtream"),
             importEmby: unimplemented("PlaylistImportClient.importEmby"),
             deletePlaylist: unimplemented("PlaylistImportClient.deletePlaylist"),
-            refreshPlaylist: unimplemented("PlaylistImportClient.refreshPlaylist")
+            refreshPlaylist: unimplemented("PlaylistImportClient.refreshPlaylist"),
+            updatePlaylist: unimplemented("PlaylistImportClient.updatePlaylist")
         )
     }
 

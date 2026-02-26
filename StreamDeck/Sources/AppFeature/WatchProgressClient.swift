@@ -16,6 +16,8 @@ public struct WatchProgressClient: Sendable {
     public var getUnfinished: @Sendable (_ limit: Int) async throws -> [WatchProgressRecord]
 
     public var deleteProgress: @Sendable (_ contentID: String) async throws -> Void
+
+    public var clearAll: @Sendable () async throws -> Void
 }
 
 // MARK: - Dependency Registration
@@ -46,6 +48,9 @@ extension WatchProgressClient: DependencyKey {
             },
             deleteProgress: { contentID in
                 try repo.delete(contentID: contentID)
+            },
+            clearAll: {
+                try repo.deleteAll()
             }
         )
     }
@@ -56,7 +61,8 @@ extension WatchProgressClient: DependencyKey {
             getProgress: unimplemented("WatchProgressClient.getProgress"),
             getProgressBatch: unimplemented("WatchProgressClient.getProgressBatch"),
             getUnfinished: unimplemented("WatchProgressClient.getUnfinished"),
-            deleteProgress: unimplemented("WatchProgressClient.deleteProgress")
+            deleteProgress: unimplemented("WatchProgressClient.deleteProgress"),
+            clearAll: unimplemented("WatchProgressClient.clearAll")
         )
     }
 
