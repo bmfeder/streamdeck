@@ -232,9 +232,7 @@ public struct AppView: View {
                 SettingsView(store: store.scope(state: \.settings, action: \.settings))
             }
         }
-        #if os(tvOS)
-        .tabViewStyle(.sidebarAdaptable)
-        #endif
+        .tabViewStyle(.tabBarOnly)
     }
 
     // MARK: - Now Playing Mini-Bar
