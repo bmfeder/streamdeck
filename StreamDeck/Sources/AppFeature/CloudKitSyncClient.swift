@@ -33,9 +33,32 @@ public struct CloudKitSyncClient: Sendable {
 // MARK: - Dependency Registration
 
 extension CloudKitSyncClient: DependencyKey {
+    /// Returns true only if the running binary has CloudKit entitlements.
+    /// This prevents `CKContainer(identifier:)` from being called (and logging
+    /// "Significant issue at CKContainer.m:747") in environments that lack them
+    /// (e.g. iOS Simulator without iCloud provisioning).
+    private static let hasCloudKitEntitlement: Bool = {
+        guard let entitlements = Bundle.main.infoDictionary?["com.apple.developer.icloud-services"] as? [String] else {
+            // Entitlements aren't in Info.plist — check the embedded mobile provision
+            // by looking for the iCloud container identifier instead.
+            if let containers = Bundle.main.infoDictionary?["com.apple.developer.icloud-container-identifiers"] as? [String],
+               !containers.isEmpty {
+                return true
+            }
+            // Fall back: check if code-signed entitlements exist via SecTask (macOS only).
+            // On iOS/tvOS, entitlements are baked into provisioning — if neither key is
+            // in Info.plist, assume CloudKit is available only on real devices with
+            // automatic signing (Xcode injects entitlements at build time).
+            #if targetEnvironment(simulator)
+            return false
+            #else
+            return true
+            #endif
+        }
+        return entitlements.contains("CloudKit") || entitlements.contains("CloudKit-Anonymous")
+    }()
+
     /// Lazily creates the CKContainer and CloudKitSyncService on first use.
-    /// This avoids triggering the entitlements check at app launch when running
-    /// in environments without CloudKit (e.g. Simulator without iCloud sign-in).
     private final class LazyService: Sendable {
         private let _service = LockIsolated<CloudKitSyncService?>(nil)
         private let _container = LockIsolated<CKContainer?>(nil)
@@ -68,6 +91,7 @@ extension CloudKitSyncClient: DependencyKey {
 
         return CloudKitSyncClient(
             isAvailable: {
+                guard hasCloudKitEntitlement else { return false }
                 do {
                     let status = try await lazy.container.accountStatus()
                     return status == .available
@@ -76,23 +100,29 @@ extension CloudKitSyncClient: DependencyKey {
                 }
             },
             pullAll: {
-                try await lazy.service.pullAll()
+                guard hasCloudKitEntitlement else { throw CancellationError() }
+                return try await lazy.service.pullAll()
             },
             pushPlaylist: { record in
+                guard hasCloudKitEntitlement else { return }
                 try await lazy.service.pushPlaylist(record)
             },
             pushPlaylistDeletion: { playlistID in
+                guard hasCloudKitEntitlement else { return }
                 try await lazy.service.pushPlaylistDeletion(playlistID)
             },
             pushFavorite: { channelID, playlistID, isFavorite in
+                guard hasCloudKitEntitlement else { return }
                 try await lazy.service.pushFavorite(
                     channelID: channelID, playlistID: playlistID, isFavorite: isFavorite
                 )
             },
             pushWatchProgress: { record in
+                guard hasCloudKitEntitlement else { return }
                 try await lazy.service.pushWatchProgress(record)
             },
             pushPreferences: { prefs in
+                guard hasCloudKitEntitlement else { return }
                 try await lazy.service.pushPreferences(prefs)
             }
         )
