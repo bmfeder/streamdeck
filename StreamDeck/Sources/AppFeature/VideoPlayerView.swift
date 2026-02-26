@@ -15,6 +15,14 @@ public struct VideoPlayerView: View {
 
             playerContent
 
+            // Transparent tap target — sits above the player but below overlays
+            // so taps aren't swallowed by AVPlayerViewController's gesture recognizers
+            #if os(iOS)
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture { store.send(.toggleOverlayTapped) }
+            #endif
+
             if store.isOverlayVisible {
                 overlay
             }
@@ -53,8 +61,6 @@ public struct VideoPlayerView: View {
                 break
             }
         }
-        #elseif os(iOS)
-        .onTapGesture { store.send(.toggleOverlayTapped) }
         #endif
     }
 
@@ -220,7 +226,13 @@ public struct VideoPlayerView: View {
                 .allowsHitTesting(false)
 
         case .loading:
-            bufferingView
+            // Don't show spinner during brief re-buffering once playback has started
+            if store.hasStartedPlaying && store.bufferingElapsedSeconds < 3 {
+                EmptyView()
+            } else {
+                bufferingView
+                    .allowsHitTesting(false)
+            }
 
         case let .retrying(attempt, engine):
             retryingView(attempt: attempt, engine: engine)

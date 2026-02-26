@@ -36,6 +36,7 @@ struct AVPlayerWrapperView: UIViewControllerRepresentable {
 
     func makeUIViewController(context: Context) -> AVPlayerViewController {
         let controller = AVPlayerViewController()
+        controller.showsPlaybackControls = false
         let player = AVPlayer(url: url)
         controller.player = player
         context.coordinator.player = player

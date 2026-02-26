@@ -39,6 +39,7 @@ public struct VideoPlayerFeature {
 
         // Buffering feedback
         public var bufferingElapsedSeconds: Int = 0
+        public var hasStartedPlaying: Bool = false
 
         // Transport controls (toggle counters to signal wrappers without feedback loops)
         public var playPauseToggleCount: Int = 0
@@ -236,6 +237,7 @@ public struct VideoPlayerFeature {
             case let .playerStatusChanged(status):
                 state.status = status
                 if status == .playing {
+                    state.hasStartedPlaying = true
                     state.retryCount = 0
                     state.bufferingElapsedSeconds = 0
                     return .merge(
@@ -577,16 +579,13 @@ public struct VideoPlayerFeature {
             // MARK: - Transport Controls
 
             case .playPauseTapped:
-                // Always show overlay when play/pause is pressed (primary way to bring controls back)
+                // Always show overlay and toggle play/pause — VLCKit may report .loading
+                // (buffering) while actually rendering video, so don't gate on status
                 state.isOverlayVisible = true
-                let timerEffect = startOverlayTimer()
-                if state.status == .playing || state.status == .paused {
-                    state.playPauseToggleCount += 1
-                }
-                return timerEffect
+                state.playPauseToggleCount += 1
+                return startOverlayTimer()
 
             case .seekForwardTapped:
-                guard state.status == .playing || state.status == .paused else { return .none }
                 let newPos = state.currentPositionMs + 10_000
                 if let duration = state.currentDurationMs {
                     state.seekTargetMs = min(newPos, duration)
@@ -597,7 +596,6 @@ public struct VideoPlayerFeature {
                 return .none
 
             case .seekBackwardTapped:
-                guard state.status == .playing || state.status == .paused else { return .none }
                 state.seekTargetMs = max(state.currentPositionMs - 10_000, 0)
                 state.seekToggleCount += 1
                 return .none
