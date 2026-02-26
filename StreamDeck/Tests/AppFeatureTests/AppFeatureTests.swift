@@ -241,6 +241,120 @@ final class AppFeatureTests: XCTestCase {
         }
     }
 
+    // MARK: - Now Playing Mini-Bar
+
+    private func makeChannel(
+        id: String = "ch-1",
+        name: String = "CNN"
+    ) -> ChannelRecord {
+        ChannelRecord(
+            id: id,
+            playlistID: "pl-1",
+            name: name,
+            streamURL: "http://example.com/\(id).m3u8"
+        )
+    }
+
+    func testPlayChannelFromLiveTV_setsNowPlaying() async {
+        let channel = makeChannel()
+
+        let store = TestStore(initialState: AppFeature.State()) {
+            AppFeature()
+        }
+        store.exhaustivity = .off
+
+        await store.send(.liveTV(.delegate(.playChannel(channel)))) {
+            $0.nowPlayingChannel = channel
+            $0.nowPlayingSourceTab = .liveTV
+        }
+    }
+
+    func testPlayChannelFromFavorites_setsNowPlaying() async {
+        let channel = makeChannel(id: "ch-2", name: "ESPN")
+
+        let store = TestStore(initialState: AppFeature.State()) {
+            AppFeature()
+        }
+        store.exhaustivity = .off
+
+        await store.send(.favorites(.delegate(.playChannel(channel)))) {
+            $0.nowPlayingChannel = channel
+            $0.nowPlayingSourceTab = .favorites
+        }
+    }
+
+    func testPlayerDismissed_clearsNowPlaying() async {
+        var state = AppFeature.State()
+        state.nowPlayingChannel = makeChannel()
+        state.nowPlayingSourceTab = .liveTV
+        state.liveTV.videoPlayer = VideoPlayerFeature.State(channel: makeChannel())
+
+        let store = TestStore(initialState: state) {
+            AppFeature()
+        }
+        store.exhaustivity = .off
+
+        await store.send(.liveTV(.videoPlayer(.presented(.delegate(.dismissed))))) {
+            $0.nowPlayingChannel = nil
+            $0.nowPlayingSourceTab = nil
+            $0.liveTV.videoPlayer = nil
+        }
+    }
+
+    func testMiniBarTapped_switchesTabAndPlays() async {
+        let channel = makeChannel()
+        var state = AppFeature.State()
+        state.nowPlayingChannel = channel
+        state.nowPlayingSourceTab = .liveTV
+        state.selectedTab = .home
+
+        let store = TestStore(initialState: state) {
+            AppFeature()
+        } withDependencies: {
+            $0.streamRouterClient.route = { url in
+                StreamRoute(recommendedEngine: .avPlayer, url: url, reason: "test")
+            }
+            $0.continuousClock = ImmediateClock()
+            $0.watchProgressClient.getProgress = { _ in nil }
+            $0.watchProgressClient.saveProgress = { _, _, _, _ in }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.miniBarTapped) {
+            $0.selectedTab = .liveTV
+        }
+
+        await store.receive(\.liveTV.channelTapped) {
+            $0.liveTV.focusedChannelID = "ch-1"
+            $0.liveTV.videoPlayer = VideoPlayerFeature.State(channel: channel)
+        }
+
+        await store.skipReceivedActions()
+    }
+
+    func testMiniBarDismissed_clearsState() async {
+        var state = AppFeature.State()
+        state.nowPlayingChannel = makeChannel()
+        state.nowPlayingSourceTab = .liveTV
+
+        let store = TestStore(initialState: state) {
+            AppFeature()
+        }
+
+        await store.send(.miniBarDismissed) {
+            $0.nowPlayingChannel = nil
+            $0.nowPlayingSourceTab = nil
+        }
+    }
+
+    func testMiniBarTapped_noChannel_noOp() async {
+        let store = TestStore(initialState: AppFeature.State()) {
+            AppFeature()
+        }
+
+        await store.send(.miniBarTapped)
+    }
+
     // MARK: - Tab Enum
 
     func testTabCaseIterable_hasNine() {

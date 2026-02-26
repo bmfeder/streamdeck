@@ -19,6 +19,10 @@ public struct AppFeature {
         public var favorites = FavoritesFeature.State()
         public var settings = SettingsFeature.State()
 
+        // Now Playing Mini-Bar
+        public var nowPlayingChannel: ChannelRecord?
+        public var nowPlayingSourceTab: Tab?
+
         public init() {}
     }
 
@@ -27,6 +31,8 @@ public struct AppFeature {
         case tabSelected(Tab)
         case acceptDisclaimerTapped
         case stalePlaylistsRefreshed
+        case miniBarTapped
+        case miniBarDismissed
 
         case home(HomeFeature.Action)
         case search(SearchFeature.Action)
@@ -85,6 +91,62 @@ public struct AppFeature {
                 state.hasAcceptedDisclaimer = true
                 userDefaultsClient.setBool(true, UserDefaultsKey.hasAcceptedDisclaimer)
                 return .none
+            // MARK: - Now Playing Mini-Bar
+
+            case let .liveTV(.delegate(.playChannel(channel))):
+                state.nowPlayingChannel = channel
+                state.nowPlayingSourceTab = .liveTV
+                return .none
+
+            case let .favorites(.delegate(.playChannel(channel))):
+                state.nowPlayingChannel = channel
+                state.nowPlayingSourceTab = .favorites
+                return .none
+
+            case let .home(.delegate(.playChannel(channel))):
+                state.nowPlayingChannel = channel
+                state.nowPlayingSourceTab = .home
+                return .none
+
+            case let .search(.delegate(.playChannel(channel))):
+                state.nowPlayingChannel = channel
+                state.nowPlayingSourceTab = .search
+                return .none
+
+            case let .guide(.delegate(.playChannel(channel))):
+                state.nowPlayingChannel = channel
+                state.nowPlayingSourceTab = .liveTV
+                return .none
+
+            case .liveTV(.videoPlayer(.presented(.delegate(.dismissed)))),
+                 .favorites(.videoPlayer(.presented(.delegate(.dismissed)))),
+                 .home(.videoPlayer(.presented(.delegate(.dismissed)))),
+                 .search(.videoPlayer(.presented(.delegate(.dismissed)))),
+                 .guide(.videoPlayer(.presented(.delegate(.dismissed)))),
+                 .movies(.videoPlayer(.presented(.delegate(.dismissed)))),
+                 .tvShows(.videoPlayer(.presented(.delegate(.dismissed)))),
+                 .emby(.videoPlayer(.presented(.delegate(.dismissed)))):
+                state.nowPlayingChannel = nil
+                state.nowPlayingSourceTab = nil
+                return .none
+
+            case .miniBarTapped:
+                guard let channel = state.nowPlayingChannel,
+                      let sourceTab = state.nowPlayingSourceTab else { return .none }
+                state.selectedTab = sourceTab
+                switch sourceTab {
+                case .liveTV: return .send(.liveTV(.channelTapped(channel)))
+                case .favorites: return .send(.favorites(.channelTapped(channel)))
+                case .home: return .send(.home(.favoriteChannelTapped(channel)))
+                case .search: return .send(.search(.channelTapped(channel)))
+                default: return .none
+                }
+
+            case .miniBarDismissed:
+                state.nowPlayingChannel = nil
+                state.nowPlayingSourceTab = nil
+                return .none
+
             case .home, .search, .liveTV, .guide, .movies, .tvShows, .emby, .favorites, .settings:
                 return .none
             }
@@ -115,6 +177,16 @@ public struct AppView: View {
     }
 
     private var sidebarTabView: some View {
+        ZStack(alignment: .bottom) {
+            tabContent
+
+            if store.nowPlayingChannel != nil {
+                nowPlayingMiniBar
+            }
+        }
+    }
+
+    private var tabContent: some View {
         TabView(selection: $store.selectedTab.sending(\.tabSelected)) {
             SwiftUI.Tab(Tab.home.title, systemImage: Tab.home.systemImage, value: Tab.home) {
                 HomeView(store: store.scope(state: \.home, action: \.home))
@@ -147,6 +219,57 @@ public struct AppView: View {
         #if os(tvOS)
         .tabViewStyle(.sidebarAdaptable)
         #endif
+    }
+
+    // MARK: - Now Playing Mini-Bar
+
+    private var nowPlayingMiniBar: some View {
+        Button {
+            store.send(.miniBarTapped)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "play.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(Color.accentColor)
+
+                if let channel = store.nowPlayingChannel {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(channel.name)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(.red)
+                                .frame(width: 6, height: 6)
+                            Text("LIVE")
+                                .font(.caption2)
+                                .fontWeight(.bold)
+                                .foregroundStyle(.red)
+                        }
+                    }
+                }
+
+                Spacer()
+
+                Button {
+                    store.send(.miniBarDismissed)
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 20)
+        .padding(.bottom, 8)
     }
 }
 
