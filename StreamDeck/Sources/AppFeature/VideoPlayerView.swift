@@ -42,7 +42,9 @@ public struct VideoPlayerView: View {
             }
         }
         .onAppear { store.send(.onAppear) }
-        .onDisappear { store.send(.onDisappear) }
+        // Note: cleanup is handled by dismissTapped (save progress + cancel timers).
+        // Sending onDisappear from fullScreenCover causes a TCA ifLet warning
+        // because the parent nils state before SwiftUI fires onDisappear.
         #if os(tvOS)
         .onPlayPauseCommand { store.send(.playPauseTapped) }
         .onMoveCommand { direction in
@@ -229,11 +231,17 @@ public struct VideoPlayerView: View {
 
     // MARK: - Scrubber
 
+    #if os(iOS)
     @State private var isScrubbing = false
     @State private var scrubPosition: Double = 0
+    #endif
 
     private func scrubberBar(duration: Int) -> some View {
+        #if os(iOS)
         let position = isScrubbing ? scrubPosition : Double(store.currentPositionMs)
+        #else
+        let position = Double(store.currentPositionMs)
+        #endif
         let durationDouble = Double(duration)
 
         return HStack(spacing: 12) {
@@ -243,6 +251,7 @@ public struct VideoPlayerView: View {
                 .monospacedDigit()
                 .frame(minWidth: 50, alignment: .trailing)
 
+            #if os(iOS)
             Slider(
                 value: Binding(
                     get: { position },
@@ -258,6 +267,26 @@ public struct VideoPlayerView: View {
                 }
             }
             .tint(.white)
+            #else
+            // tvOS: visual-only progress bar (seek via ±10s buttons / Siri Remote)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.white.opacity(0.3))
+                        .frame(height: 6)
+                    Capsule()
+                        .fill(Color.white)
+                        .frame(
+                            width: durationDouble > 0
+                                ? geo.size.width * CGFloat(position / durationDouble)
+                                : 0,
+                            height: 6
+                        )
+                }
+                .frame(maxHeight: .infinity, alignment: .center)
+            }
+            .frame(height: 20)
+            #endif
 
             Text("-\(formatTime(max(0, duration - Int(position))))")
                 .font(.caption)

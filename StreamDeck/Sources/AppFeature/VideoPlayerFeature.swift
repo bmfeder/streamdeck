@@ -222,9 +222,15 @@ public struct VideoPlayerFeature {
                 state.playerCommand = .stop
                 return .merge(
                     saveEffect,
-                    .run { send in
-                        await send(.delegate(.dismissed))
-                    }
+                    .cancel(id: CancelID.overlayTimer),
+                    .cancel(id: CancelID.retryTimer),
+                    .cancel(id: CancelID.progressTimer),
+                    .cancel(id: CancelID.switcherTimer),
+                    .cancel(id: CancelID.sleepTimer),
+                    .cancel(id: CancelID.sleepTimerTick),
+                    .cancel(id: CancelID.numberEntryTimer),
+                    .cancel(id: CancelID.bufferingTimer),
+                    .send(.delegate(.dismissed))
                 )
 
             case let .streamRouted(route):
