@@ -1,28 +1,30 @@
 # CLAUDE.md — StreamDeck Project Context
 
 ## What is this project?
-StreamDeck is a cross-platform IPTV/Emby media player app, similar to KDTivi. Priority platform is tvOS (Apple TV), with iOS companion and future Android TV support.
+StreamDeck is a cross-platform IPTV/Emby media player app, similar to KDTivi. Priority platform is tvOS (Apple TV), with iOS companion, web dashboard, and future Android TV support.
 
 ## Architecture Decisions (locked in)
 
 ### Tech Stack
 - **tvOS/iOS UI**: SwiftUI + UIKit (for AVPlayer wrapping). TCA (The Composable Architecture) for state management.
+- **Web Dashboard**: React Router 7 (Framework Mode) + shadcn/ui + Tailwind CSS v4. Deployed on Cloudflare Workers.
 - **Android TV UI** (future): Jetpack Compose for TV (androidx.tv:tv-material). Orbit MVI.
 - **Shared Logic (KMP)**: Set up from day 1 but building Swift-first for now. Will migrate parsers/models to Kotlin when Android work begins.
-- **Video**: AVPlayer (primary) + VLCKit (fallback via on-demand resources). FFprobeKit for codec probing (<200ms).
-- **Networking**: Ktor (KMP) — or URLSession for Swift-only phase.
-- **Image Loading**: Coil Multiplatform (KMP).
-- **Local Storage**: GRDB.swift (Swift-first phase). Will port schema to SQLDelight in KMP shared module for Android (Phase 4).
-- **DI**: Koin (KMP).
-- **Security**: Keychain for credentials. Never store passwords in SQLite.
+- **Video**: AVPlayer (primary) + VLCKit (fallback). hls.js for web preview.
+- **Networking**: URLSession (Swift), fetch (web).
+- **Local Storage**: GRDB.swift (tvOS/iOS, local-only data like EPG). PowerSync SQLite (synced data).
+- **Backend**: Supabase (PostgreSQL + Auth + RLS) — free tier.
+- **Sync**: PowerSync Cloud — bidirectional, local-first, offline-first sync between Supabase, web dashboard, and tvOS/iOS app. Replaces CloudKit.
+- **Auth**: Apple Sign In (native on tvOS/iOS via ASAuthorizationAppleIDProvider, OAuth on web via Supabase).
+- **Security**: Keychain for local credentials. Supabase pgcrypto for cloud-synced passwords. Never store passwords in plaintext.
 - **Subscriptions**: StoreKit 2 (Apple-only). Add RevenueCat when Android launches.
 
 ### Architecture Pattern
 Four-layer clean architecture:
-1. **Presentation** — SwiftUI views, TCA reducers, tvOS focus handlers
+1. **Presentation** — SwiftUI views, TCA reducers, tvOS focus handlers; React Router 7 routes + shadcn/ui (web)
 2. **Use Cases / Repos** — PlaylistRepository, ChannelRepository, EmbyRepository, etc.
 3. **Domain (Shared)** — Parsers, models, Emby API client, search
-4. **Data** — SQLDelight DB, HTTP client, image cache, CloudKit sync
+4. **Data** — GRDB (local EPG), PowerSync SQLite (synced tables), Supabase PostgreSQL (backend), HTTP client, image cache
 
 ### Video Playback Pipeline
 User selects → Resolve URL → FFprobeKit probe (<200ms) → Route to AVPlayer (HLS/MP4) or VLCKit (TS/MKV/RTSP/RTMP) → Playback. Reconnect with exponential backoff (3 retries, then fallback engine once). See capability matrix in docs/app-design-v2.html §02.
@@ -34,18 +36,29 @@ Channels use three-tier IDs: `playlist_id` (source) → `source_channel_id` (pro
 ```
 streamdeck/
 ├── CLAUDE.md                  ← you are here
-├── StreamDeck.xcodeproj       ← Xcode project (tvOS app)
-├── .github/workflows/ci.yml   ← GitHub Actions CI (Swift tests + tvOS build)
-├── App/                       ← tvOS app target (SwiftUI @main entry point)
+├── StreamDeck.xcodeproj       ← Xcode project (tvOS + iOS targets)
+├── .github/workflows/ci.yml   ← GitHub Actions CI (Swift tests + tvOS build + iOS build)
+├── App/                       ← Shared app target (SwiftUI @main, tvOS + iOS)
 │   └── StreamDeckApp.swift
-├── StreamDeck/                ← Swift Package (parsers, models, tests)
+├── StreamDeck/                ← Swift Package (all app modules + tests)
 │   ├── Package.swift
 │   ├── Sources/M3UParser/     ← M3U/M3U8 parser (41 tests)
 │   ├── Sources/XtreamClient/  ← Xtream Codes API client (57 tests)
 │   ├── Sources/XMLTVParser/   ← XMLTV EPG parser, SAX-style (57 tests)
-│   ├── Sources/Database/      ← GRDB schema v1 (45 tests)
-│   ├── Sources/AppFeature/    ← TCA root + 7 tab features (10 tests)
+│   ├── Sources/EmbyClient/    ← Emby server API client (26 tests)
+│   ├── Sources/Database/      ← GRDB schema v2 (45 tests)
+│   ├── Sources/Repositories/  ← Data repos, import services, CloudKit sync (190+ tests)
+│   ├── Sources/AppFeature/    ← TCA features: 8 tabs, video player, search, settings (300+ tests)
 │   └── Tests/
+├── web-dashboard/             ← Web dashboard (React Router 7 + Supabase + PowerSync)
+│   ├── supabase/              ← SQL schema, RLS policies, indexes, triggers
+│   │   ├── schema.sql
+│   │   ├── indexes.sql
+│   │   ├── rls.sql
+│   │   ├── triggers.sql
+│   │   └── SETUP.md
+│   └── powersync/
+│       └── sync-rules.yaml
 ├── Shared/                    ← KMP shared module (empty shell, for Android phase)
 ├── docs/
 │   └── app-design-v2.html    ← full design spec (open in browser to read)
@@ -54,27 +67,19 @@ streamdeck/
 ```
 
 ## Current Status
-- **Phase 0 — Complete** (except TestFlight which requires App Store Connect manual setup)
-- Design spec v2.1 complete (16 sections, reviewed twice)
-- M3U parser: 41 tests, 20 fixture playlists
-- Xtream Codes API client: 57 tests
-- XMLTV EPG parser: 57 tests, SAX-style incremental
-- GRDB database schema v1: 45 tests, 5 record types, 9 indexes, soft-delete
-- TCA skeleton: 10 tests, 7-tab sidebar, legal disclaimer gate
-- SPM dependencies: TCA 1.23.1, GRDB 7.10.0, VLCKit 3.6.0
-- Xcode project (tvOS 26.0+, SwiftUI lifecycle)
-- KMP shared module scaffolded (empty shell)
-- GitHub Actions CI: 2 jobs (Swift tests + tvOS build) on macos-26
-- Total: **210 tests** across 6 targets, all passing
+- **Phase 0 — Complete**: Design spec, parsers, database schema, TCA skeleton, CI
+- **Phase 1 — Complete**: Repositories, playlist import (M3U + Xtream), channel grid UI, video player (AVPlayer + retry/fallback), EPG basics + grid view
+- **Phase 2 — Complete**: VOD extraction (Movies + TV Shows), watch progress tracking, disclaimer persistence, Emby integration
+- **Phase 3 — Complete**: VLCKit fallback, channel switcher, sleep timer, channel number entry, now-playing mini-bar, empty/degraded states, user preferences, playlist editing, home recently-watched, CloudKit sync, universal search, iOS companion app, transport controls + scrubber, tvOS HIG refinement pass
+- **Phase 4 (Web Dashboard) — In Progress**: Supabase backend schema + PowerSync sync rules delivered (Phase 4.1). Next: React Router 7 web dashboard (Phase 4.2), then Swift app PowerSync integration (Phase 4.3).
+- Total: **734 tests** across 8 targets, all passing
+- GitHub Actions CI: 3 jobs (Swift tests + tvOS build + iOS build) on macos-26
 
-## What to Build Next (Phase 1)
-Reference: tasks/streamdeck-tasks.xlsx, "Phase 1" sheet
-- TestFlight setup (requires manual App Store Connect app record)
-- PlaylistRepository + ChannelRepository
-- Playlist import (M3U, Xtream)
-- Channel grid UI with category filtering
-- Video player (AVPlayer primary)
-- EPG grid view
+## What to Build Next (Phase 4: Web Dashboard)
+1. ~~Supabase SQL schema, RLS, PowerSync sync rules~~ — DONE (web-dashboard/supabase/)
+2. React Router 7 web dashboard (auth, playlist CRUD, channel/VOD browsing, HLS preview)
+3. Swift app: replace CloudKit with PowerSync + Supabase auth
+4. Polish: sync status, error handling, data export
 
 ## Coding Conventions
 
@@ -112,7 +117,6 @@ When you need specifics, read docs/app-design-v2.html:
 - §11: Event dictionary with PII rules
 
 ## Non-Goals (do not build)
-- No server-side accounts or backend
 - No provider marketplace/discovery
 - No DVR/recording
 - No transcoding
