@@ -2,6 +2,7 @@ import ComposableArchitecture
 import Foundation
 import Database
 import Repositories
+import SyncDatabase
 
 /// Grouped channels with sorted group names for UI rendering.
 public struct GroupedChannels: Equatable, Sendable {
@@ -43,15 +44,16 @@ public struct ChannelListClient: Sendable {
 
 extension ChannelListClient: DependencyKey {
     public static var liveValue: ChannelListClient {
-        let dbManager = try! DatabaseManager(path: Self.databasePath())
-        let channelRepo = ChannelRepository(dbManager: dbManager)
-        let playlistRepo = PlaylistRepository(dbManager: dbManager)
+        let db = SyncDatabaseManager.shared.db
+        let channelRepo = SyncChannelRepository(db: db)
+        let playlistRepo = SyncPlaylistRepository(db: db)
         return ChannelListClient(
             fetchPlaylists: {
-                try playlistRepo.getAll()
+                try await playlistRepo.getAll()
             },
             fetchGroupedChannels: { playlistID in
-                let dict = try channelRepo.getActiveGrouped(playlistID: playlistID)
+                let channels = try await channelRepo.getActive(playlistID: playlistID)
+                let dict = Dictionary(grouping: channels) { $0.groupName ?? "" }
                 let sortedGroups = dict.keys.sorted { lhs, rhs in
                     if lhs.isEmpty { return false }
                     if rhs.isEmpty { return true }
@@ -60,22 +62,22 @@ extension ChannelListClient: DependencyKey {
                 return GroupedChannels(groups: sortedGroups, channelsByGroup: dict)
             },
             searchChannels: { query, playlistID in
-                try channelRepo.search(query: query, playlistID: playlistID)
+                try await channelRepo.search(query: query, playlistID: playlistID)
             },
             fetchFavorites: {
-                try channelRepo.getFavorites()
+                try await channelRepo.getFavorites()
             },
             toggleFavorite: { id in
-                try channelRepo.toggleFavorite(id: id)
+                try await channelRepo.toggleFavorite(id: id)
             },
             fetchByNumber: { playlistID, number in
-                try channelRepo.getByNumber(playlistID: playlistID, number: number)
+                try await channelRepo.getByNumber(playlistID: playlistID, number: number)
             },
             fetchByIDs: { ids in
-                try channelRepo.getBatch(ids: ids)
+                try await channelRepo.getBatch(ids: ids)
             },
             fetchByEpgID: { epgID in
-                try channelRepo.getByEpgID(epgID)
+                try await channelRepo.getByEpgID(epgID)
             }
         )
     }
@@ -91,15 +93,6 @@ extension ChannelListClient: DependencyKey {
             fetchByIDs: unimplemented("ChannelListClient.fetchByIDs"),
             fetchByEpgID: unimplemented("ChannelListClient.fetchByEpgID")
         )
-    }
-
-    private static func databasePath() -> String {
-        let appSupport = FileManager.default.urls(
-            for: .applicationSupportDirectory, in: .userDomainMask
-        ).first!
-        let dir = appSupport.appendingPathComponent("StreamDeck", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("streamdeck.db").path
     }
 }
 

@@ -1,7 +1,17 @@
 import ComposableArchitecture
 import Database
-import Repositories
+import Supabase
+import SyncDatabase
 import SwiftUI
+
+// MARK: - App Phase
+
+/// Tracks the three-phase onboarding flow: disclaimer → signIn → authenticated.
+public enum AppPhase: Equatable, Sendable {
+    case disclaimer
+    case signIn
+    case authenticated
+}
 
 @Reducer
 public struct AppFeature {
@@ -9,7 +19,10 @@ public struct AppFeature {
     public struct State: Equatable, Sendable {
         public var selectedTab: Tab = .home
         public var hasAcceptedDisclaimer: Bool = false
+        public var phase: AppPhase = .disclaimer
+        public var authSession: AuthSession?
 
+        public var signIn = SignInFeature.State()
         public var home = HomeFeature.State()
         public var search = SearchFeature.State()
         public var liveTV = LiveTVFeature.State()
@@ -31,11 +44,15 @@ public struct AppFeature {
         case onAppear
         case tabSelected(Tab)
         case acceptDisclaimerTapped
+        case sessionChecked(AuthSession?)
+        case powerSyncConnected
+        case signOutTapped
+        case signedOut
         case stalePlaylistsRefreshed
-        case cloudKitPullCompleted(Result<SyncPullResult, Error>)
         case miniBarTapped
         case miniBarDismissed
 
+        case signIn(SignInFeature.Action)
         case home(HomeFeature.Action)
         case search(SearchFeature.Action)
         case liveTV(LiveTVFeature.Action)
@@ -50,11 +67,12 @@ public struct AppFeature {
     @Dependency(\.userDefaultsClient) var userDefaultsClient
     @Dependency(\.vodListClient) var vodListClient
     @Dependency(\.playlistImportClient) var playlistImportClient
-    @Dependency(\.cloudKitSyncClient) var cloudKitSyncClient
+    @Dependency(\.authClient) var authClient
 
     public init() {}
 
     public var body: some ReducerOf<Self> {
+        Scope(state: \.signIn, action: \.signIn) { SignInFeature() }
         Scope(state: \.home, action: \.home) { HomeFeature() }
         Scope(state: \.search, action: \.search) { SearchFeature() }
         Scope(state: \.liveTV, action: \.liveTV) { LiveTVFeature() }
@@ -71,41 +89,72 @@ public struct AppFeature {
                 state.hasAcceptedDisclaimer = userDefaultsClient.boolForKey(
                     UserDefaultsKey.hasAcceptedDisclaimer
                 )
+                if state.hasAcceptedDisclaimer {
+                    state.phase = .signIn
+                }
+                let client = authClient
+                return .run { send in
+                    let session = await client.currentSession()
+                    await send(.sessionChecked(session))
+                }
+
+            case let .sessionChecked(session):
+                state.authSession = session
+                if session != nil {
+                    state.phase = .authenticated
+                    return connectPowerSync()
+                } else if state.hasAcceptedDisclaimer {
+                    state.phase = .signIn
+                }
+                return .none
+
+            case .powerSyncConnected:
                 let vod = vodListClient
                 let importClient = playlistImportClient
-                let sync = cloudKitSyncClient
-                return .merge(
-                    .run { send in
-                        let playlists = try await vod.fetchPlaylists()
-                        let now = Int(Date().timeIntervalSince1970)
-                        for playlist in playlists {
-                            let lastSync = playlist.lastSync ?? 0
-                            let staleAfter = lastSync + (playlist.refreshHrs * 3600)
-                            guard staleAfter < now else { continue }
-                            _ = try? await importClient.refreshPlaylist(playlist.id)
-                        }
-                        await send(.stalePlaylistsRefreshed)
-                    } catch: { _, _ in },
-                    .run { send in
-                        guard await sync.isAvailable() else { return }
-                        let result = try await sync.pullAll()
-                        await send(.cloudKitPullCompleted(.success(result)))
-                    } catch: { error, send in
-                        await send(.cloudKitPullCompleted(.failure(error)))
+                return .run { send in
+                    let playlists = try await vod.fetchPlaylists()
+                    let now = Int(Date().timeIntervalSince1970)
+                    for playlist in playlists {
+                        let lastSync = playlist.lastSync ?? 0
+                        let staleAfter = lastSync + (playlist.refreshHrs * 3600)
+                        guard staleAfter < now else { continue }
+                        _ = try? await importClient.refreshPlaylist(playlist.id)
                     }
-                )
+                    await send(.stalePlaylistsRefreshed)
+                } catch: { _, _ in }
 
             case .stalePlaylistsRefreshed:
                 return .none
 
-            case .cloudKitPullCompleted:
-                return .none
             case let .tabSelected(tab):
                 state.selectedTab = tab
                 return .none
+
             case .acceptDisclaimerTapped:
                 state.hasAcceptedDisclaimer = true
+                state.phase = .signIn
                 userDefaultsClient.setBool(true, UserDefaultsKey.hasAcceptedDisclaimer)
+                return .none
+
+            case let .signIn(.delegate(.authenticated(session))):
+                state.authSession = session
+                state.phase = .authenticated
+                return connectPowerSync()
+
+            case .signIn:
+                return .none
+
+            case .signOutTapped:
+                let client = authClient
+                return .run { send in
+                    try? await SyncDatabaseManager.shared.disconnect()
+                    try? await client.signOut()
+                    await send(.signedOut)
+                }
+
+            case .signedOut:
+                state.authSession = nil
+                state.phase = .signIn
                 return .none
             // MARK: - Now Playing Mini-Bar
 
@@ -163,9 +212,29 @@ public struct AppFeature {
                 state.nowPlayingSourceTab = nil
                 return .none
 
+            case .settings(.signOutTapped):
+                return .send(.signOutTapped)
+
             case .home, .search, .liveTV, .guide, .movies, .tvShows, .emby, .favorites, .settings:
                 return .none
             }
+        }
+    }
+
+    private func connectPowerSync() -> Effect<Action> {
+        .run { send in
+            guard let config = SyncConfig.fromInfoPlist(),
+                  let url = URL(string: config.supabaseURL) else {
+                await send(.powerSyncConnected)
+                return
+            }
+            let supabase = SupabaseClient(supabaseURL: url, supabaseKey: config.supabaseAnonKey)
+            let connector = SupabasePowerSyncConnector(
+                supabase: supabase,
+                powersyncURL: config.powersyncURL
+            )
+            try? await SyncDatabaseManager.shared.connect(connector: connector)
+            await send(.powerSyncConnected)
         }
     }
 }
@@ -181,12 +250,15 @@ public struct AppView: View {
 
     public var body: some View {
         Group {
-            if store.hasAcceptedDisclaimer {
-                sidebarTabView
-            } else {
+            switch store.phase {
+            case .disclaimer:
                 DisclaimerView {
                     store.send(.acceptDisclaimerTapped)
                 }
+            case .signIn:
+                SignInView(store: store.scope(state: \.signIn, action: \.signIn))
+            case .authenticated:
+                sidebarTabView
             }
         }
         .onAppear { store.send(.onAppear) }

@@ -659,7 +659,6 @@ final class VideoPlayerFeatureTests: XCTestCase {
             $0.watchProgressClient.saveProgress = { contentID, _, positionMs, _ in
                 saved.setValue((contentID, positionMs))
             }
-            $0.cloudKitSyncClient.pushWatchProgress = { _ in }
         }
 
         await store.send(.onDisappear) {
@@ -898,7 +897,6 @@ final class VideoPlayerFeatureTests: XCTestCase {
             $0.watchProgressClient.saveProgress = { contentID, _, positionMs, _ in
                 saved.setValue((contentID, positionMs))
             }
-            $0.cloudKitSyncClient.pushWatchProgress = { _ in }
         }
         store.exhaustivity = .off
 
@@ -1059,7 +1057,6 @@ final class VideoPlayerFeatureTests: XCTestCase {
             $0.watchProgressClient.saveProgress = { contentID, _, positionMs, _ in
                 saved.setValue((contentID, positionMs))
             }
-            $0.cloudKitSyncClient.pushWatchProgress = { _ in }
         }
 
         await store.send(.sleepTimerFired) {

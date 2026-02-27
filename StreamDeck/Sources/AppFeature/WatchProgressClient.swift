@@ -2,6 +2,7 @@ import ComposableArchitecture
 import Foundation
 import Database
 import Repositories
+import SyncDatabase
 
 /// TCA dependency client for watch progress tracking.
 /// Wraps WatchProgressRepository for use in reducers.
@@ -26,8 +27,8 @@ public struct WatchProgressClient: Sendable {
 
 extension WatchProgressClient: DependencyKey {
     public static var liveValue: WatchProgressClient {
-        let dbManager = try! DatabaseManager(path: Self.databasePath())
-        let repo = WatchProgressRepository(dbManager: dbManager)
+        let db = SyncDatabaseManager.shared.db
+        let repo = SyncWatchProgressRepository(db: db)
         return WatchProgressClient(
             saveProgress: { contentID, playlistID, positionMs, durationMs in
                 let record = WatchProgressRecord(
@@ -37,25 +38,25 @@ extension WatchProgressClient: DependencyKey {
                     durationMs: durationMs,
                     updatedAt: Int(Date().timeIntervalSince1970)
                 )
-                try repo.upsert(record)
+                try await repo.upsert(record)
             },
             getProgress: { contentID in
-                try repo.get(contentID: contentID)
+                try await repo.get(contentID: contentID)
             },
             getProgressBatch: { contentIDs in
-                try repo.getBatch(contentIDs: contentIDs)
+                try await repo.getBatch(contentIDs: contentIDs)
             },
             getUnfinished: { limit in
-                try repo.getUnfinished(limit: limit)
+                try await repo.getUnfinished(limit: limit)
             },
             deleteProgress: { contentID in
-                try repo.delete(contentID: contentID)
+                try await repo.delete(contentID: contentID)
             },
             clearAll: {
-                try repo.deleteAll()
+                try await repo.deleteAll()
             },
             getRecentlyWatched: { limit in
-                try repo.getRecentlyWatched(limit: limit)
+                try await repo.getRecentlyWatched(limit: limit)
             }
         )
     }
@@ -70,15 +71,6 @@ extension WatchProgressClient: DependencyKey {
             clearAll: unimplemented("WatchProgressClient.clearAll"),
             getRecentlyWatched: unimplemented("WatchProgressClient.getRecentlyWatched")
         )
-    }
-
-    private static func databasePath() -> String {
-        let appSupport = FileManager.default.urls(
-            for: .applicationSupportDirectory, in: .userDomainMask
-        ).first!
-        let dir = appSupport.appendingPathComponent("StreamDeck", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("streamdeck.db").path
     }
 }
 

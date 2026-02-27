@@ -16,6 +16,7 @@ let package = Package(
         .library(name: "AppFeature", targets: ["AppFeature"]),
         .library(name: "Repositories", targets: ["Repositories"]),
         .library(name: "EmbyClient", targets: ["EmbyClient"]),
+        .library(name: "SyncDatabase", targets: ["SyncDatabase"]),
     ],
     dependencies: [
         .package(
@@ -29,6 +30,14 @@ let package = Package(
         .package(
             url: "https://github.com/tylerjonesio/vlckit-spm",
             from: "3.6.0"
+        ),
+        .package(
+            url: "https://github.com/powersync-ja/powersync-swift",
+            from: "1.11.0"
+        ),
+        .package(
+            url: "https://github.com/supabase/supabase-swift",
+            from: "2.41.0"
         ),
     ],
     targets: [
@@ -52,11 +61,21 @@ let package = Package(
             path: "Sources/Database"
         ),
         .target(
+            name: "SyncDatabase",
+            dependencies: [
+                .product(name: "PowerSync", package: "powersync-swift"),
+                .product(name: "Supabase", package: "supabase-swift"),
+                "Database",
+            ],
+            path: "Sources/SyncDatabase"
+        ),
+        .target(
             name: "AppFeature",
             dependencies: [
                 .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
                 .product(name: "VLCKitSPM", package: "vlckit-spm", condition: .when(platforms: [.tvOS, .iOS])),
                 "Repositories",
+                "SyncDatabase",
             ],
             path: "Sources/AppFeature"
         ),
@@ -104,6 +123,11 @@ let package = Package(
             name: "RepositoryTests",
             dependencies: ["Repositories"],
             path: "Tests/RepositoryTests"
+        ),
+        .testTarget(
+            name: "SyncDatabaseTests",
+            dependencies: ["SyncDatabase"],
+            path: "Tests/SyncDatabaseTests"
         ),
     ]
 )

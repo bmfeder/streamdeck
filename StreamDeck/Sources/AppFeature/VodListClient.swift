@@ -2,6 +2,7 @@ import ComposableArchitecture
 import Foundation
 import Database
 import Repositories
+import SyncDatabase
 
 /// TCA dependency client for VOD listing queries.
 /// Wraps VodRepository + PlaylistRepository for use in reducers.
@@ -26,30 +27,30 @@ public struct VodListClient: Sendable {
 
 extension VodListClient: DependencyKey {
     public static var liveValue: VodListClient {
-        let dbManager = try! DatabaseManager(path: Self.databasePath())
-        let vodRepo = VodRepository(dbManager: dbManager)
-        let playlistRepo = PlaylistRepository(dbManager: dbManager)
+        let db = SyncDatabaseManager.shared.db
+        let vodRepo = SyncVodRepository(db: db)
+        let playlistRepo = SyncPlaylistRepository(db: db)
         return VodListClient(
             fetchPlaylists: {
-                try playlistRepo.getAll()
+                try await playlistRepo.getAll()
             },
             fetchMovies: { playlistID in
-                try vodRepo.getMovies(playlistID: playlistID)
+                try await vodRepo.getMovies(playlistID: playlistID)
             },
             fetchSeries: { playlistID in
-                try vodRepo.getSeries(playlistID: playlistID)
+                try await vodRepo.getSeries(playlistID: playlistID)
             },
             fetchEpisodes: { seriesID in
-                try vodRepo.getEpisodes(seriesID: seriesID)
+                try await vodRepo.getEpisodes(seriesID: seriesID)
             },
             searchVod: { query, playlistID, type in
-                try vodRepo.searchVod(query: query, playlistID: playlistID, type: type)
+                try await vodRepo.searchVod(query: query, playlistID: playlistID, type: type)
             },
             fetchGenres: { playlistID, type in
-                try vodRepo.getGenres(playlistID: playlistID, type: type)
+                try await vodRepo.getGenres(playlistID: playlistID, type: type)
             },
             fetchVodItemsByIDs: { ids in
-                try vodRepo.getByIDs(ids: ids)
+                try await vodRepo.getByIDs(ids: ids)
             }
         )
     }
@@ -64,15 +65,6 @@ extension VodListClient: DependencyKey {
             fetchGenres: unimplemented("VodListClient.fetchGenres"),
             fetchVodItemsByIDs: unimplemented("VodListClient.fetchVodItemsByIDs")
         )
-    }
-
-    private static func databasePath() -> String {
-        let appSupport = FileManager.default.urls(
-            for: .applicationSupportDirectory, in: .userDomainMask
-        ).first!
-        let dir = appSupport.appendingPathComponent("StreamDeck", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("streamdeck.db").path
     }
 }
 

@@ -36,7 +36,6 @@ public struct FavoritesFeature {
 
     @Dependency(\.channelListClient) var channelListClient
     @Dependency(\.epgClient) var epgClient
-    @Dependency(\.cloudKitSyncClient) var cloudKitSyncClient
 
     public init() {}
 
@@ -88,13 +87,8 @@ public struct FavoritesFeature {
                 }
 
             case let .favoriteToggled(.success(channelID)):
-                // Channel removed from favorites — find its playlistID before removing
-                let playlistID = state.channels.first { $0.id == channelID }?.playlistID ?? ""
                 state.channels.removeAll { $0.id == channelID }
-                let sync = cloudKitSyncClient
-                return .run { _ in
-                    try? await sync.pushFavorite(channelID, playlistID, false)
-                }
+                return .none
 
             case .favoriteToggled(.failure):
                 return .none

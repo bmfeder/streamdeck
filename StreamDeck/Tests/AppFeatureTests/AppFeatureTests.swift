@@ -19,6 +19,11 @@ final class AppFeatureTests: XCTestCase {
         XCTAssertFalse(state.hasAcceptedDisclaimer)
     }
 
+    func testInitialState_phaseIsDisclaimer() {
+        let state = AppFeature.State()
+        XCTAssertEqual(state.phase, .disclaimer)
+    }
+
     // MARK: - Tab Selection
 
     func testTabSelection_changesTab() async {
@@ -49,11 +54,12 @@ final class AppFeatureTests: XCTestCase {
         }
         await store.send(.acceptDisclaimerTapped) {
             $0.hasAcceptedDisclaimer = true
+            $0.phase = .signIn
         }
         XCTAssertTrue(persisted.value)
     }
 
-    func testOnAppear_loadsPersistedDisclaimer() async {
+    func testOnAppear_loadsPersistedDisclaimer_checksSession() async {
         let store = TestStore(initialState: AppFeature.State()) {
             AppFeature()
         } withDependencies: {
@@ -61,30 +67,52 @@ final class AppFeatureTests: XCTestCase {
                 XCTAssertEqual(key, UserDefaultsKey.hasAcceptedDisclaimer)
                 return true
             }
+            $0.authClient.currentSession = { nil }
+        }
+        store.exhaustivity = .off
+        await store.send(.onAppear) {
+            $0.hasAcceptedDisclaimer = true
+            $0.phase = .signIn
+        }
+        await store.receive(\.sessionChecked)
+    }
+
+    func testOnAppear_noPriorAcceptance_remainsDisclaimer() async {
+        let store = TestStore(initialState: AppFeature.State()) {
+            AppFeature()
+        } withDependencies: {
+            $0.userDefaultsClient.boolForKey = { _ in false }
+            $0.authClient.currentSession = { nil }
+        }
+        store.exhaustivity = .off
+        await store.send(.onAppear)
+        await store.receive(\.sessionChecked)
+    }
+
+    func testOnAppear_withSession_transitionsToAuthenticated() async {
+        let session = AuthSession(userID: "user-1", email: "test@test.com", accessToken: "token")
+        let store = TestStore(initialState: AppFeature.State()) {
+            AppFeature()
+        } withDependencies: {
+            $0.userDefaultsClient.boolForKey = { _ in true }
+            $0.authClient.currentSession = { session }
             $0.vodListClient.fetchPlaylists = { [] }
         }
         store.exhaustivity = .off
         await store.send(.onAppear) {
             $0.hasAcceptedDisclaimer = true
+            $0.phase = .signIn
+        }
+        await store.receive(\.sessionChecked) {
+            $0.authSession = session
+            $0.phase = .authenticated
         }
         await store.skipReceivedActions()
     }
 
-    func testOnAppear_noPriorAcceptance_remainsFalse() async {
-        let store = TestStore(initialState: AppFeature.State()) {
-            AppFeature()
-        } withDependencies: {
-            $0.userDefaultsClient.boolForKey = { _ in false }
-            $0.vodListClient.fetchPlaylists = { [] }
-        }
-        store.exhaustivity = .off
-        await store.send(.onAppear)
-        await store.skipReceivedActions()
-    }
+    // MARK: - Auto-Refresh (triggered by powerSyncConnected)
 
-    // MARK: - Auto-Refresh
-
-    func testOnAppear_refreshesStalePlaylist() async {
+    func testPowerSyncConnected_refreshesStalePlaylist() async {
         let stalePlaylist = PlaylistRecord(
             id: "pl-stale", name: "Stale", type: "m3u",
             url: "http://example.com/pl.m3u",
@@ -96,7 +124,6 @@ final class AppFeatureTests: XCTestCase {
         let store = TestStore(initialState: AppFeature.State()) {
             AppFeature()
         } withDependencies: {
-            $0.userDefaultsClient.boolForKey = { _ in true }
             $0.vodListClient.fetchPlaylists = { [stalePlaylist] }
             $0.playlistImportClient.refreshPlaylist = { _ in
                 refreshed.setValue(true)
@@ -108,14 +135,12 @@ final class AppFeatureTests: XCTestCase {
         }
         store.exhaustivity = .off
 
-        await store.send(.onAppear) {
-            $0.hasAcceptedDisclaimer = true
-        }
+        await store.send(.powerSyncConnected)
         await store.skipReceivedActions()
         XCTAssertTrue(refreshed.value)
     }
 
-    func testOnAppear_skipsRecentlyRefreshedPlaylist() async {
+    func testPowerSyncConnected_skipsRecentlyRefreshedPlaylist() async {
         let freshPlaylist = PlaylistRecord(
             id: "pl-fresh", name: "Fresh", type: "m3u",
             url: "http://example.com/pl.m3u",
@@ -127,7 +152,6 @@ final class AppFeatureTests: XCTestCase {
         let store = TestStore(initialState: AppFeature.State()) {
             AppFeature()
         } withDependencies: {
-            $0.userDefaultsClient.boolForKey = { _ in false }
             $0.vodListClient.fetchPlaylists = { [freshPlaylist] }
             $0.playlistImportClient.refreshPlaylist = { _ in
                 refreshed.setValue(true)
@@ -139,7 +163,7 @@ final class AppFeatureTests: XCTestCase {
         }
         store.exhaustivity = .off
 
-        await store.send(.onAppear)
+        await store.send(.powerSyncConnected)
         await store.skipReceivedActions()
         XCTAssertFalse(refreshed.value)
     }
@@ -412,7 +436,7 @@ final class AppFeatureTests: XCTestCase {
             $0.userDefaultsClient.setString = { value, key in
                 saved.withValue { $0[key] = value }
             }
-            $0.cloudKitSyncClient.pushPreferences = { _ in }
+
         }
 
         await store.send(.settings(.preferredEngineChanged(.vlcKit))) {
@@ -429,12 +453,84 @@ final class AppFeatureTests: XCTestCase {
             $0.userDefaultsClient.setString = { value, key in
                 saved.withValue { $0[key] = value }
             }
-            $0.cloudKitSyncClient.pushPreferences = { _ in }
+
         }
 
         await store.send(.settings(.bufferTimeoutChanged(20))) {
             $0.settings.preferences.bufferTimeoutSeconds = 20
         }
         XCTAssertEqual(saved.value[UserDefaultsKey.bufferTimeoutSeconds], "20")
+    }
+
+    // MARK: - Auth Flow
+
+    func testSignInDelegate_transitionsToAuthenticated() async {
+        var state = AppFeature.State()
+        state.phase = .signIn
+
+        let session = AuthSession(userID: "user-1", email: "test@test.com", accessToken: "token")
+        let store = TestStore(initialState: state) {
+            AppFeature()
+        } withDependencies: {
+            $0.vodListClient.fetchPlaylists = { [] }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.signIn(.delegate(.authenticated(session)))) {
+            $0.authSession = session
+            $0.phase = .authenticated
+        }
+        await store.skipReceivedActions()
+    }
+
+    func testSignOut_transitionsToSignIn() async {
+        var state = AppFeature.State()
+        state.phase = .authenticated
+        state.authSession = AuthSession(userID: "user-1", email: nil, accessToken: "token")
+
+        let store = TestStore(initialState: state) {
+            AppFeature()
+        } withDependencies: {
+            $0.authClient.signOut = { }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.signOutTapped)
+        await store.receive(\.signedOut) {
+            $0.authSession = nil
+            $0.phase = .signIn
+        }
+    }
+
+    func testSettingsSignOut_forwardsToAppSignOut() async {
+        var state = AppFeature.State()
+        state.phase = .authenticated
+        state.authSession = AuthSession(userID: "user-1", email: nil, accessToken: "token")
+
+        let store = TestStore(initialState: state) {
+            AppFeature()
+        } withDependencies: {
+            $0.authClient.signOut = { }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.settings(.signOutTapped))
+        await store.receive(\.signOutTapped)
+        await store.receive(\.signedOut) {
+            $0.authSession = nil
+            $0.phase = .signIn
+        }
+    }
+
+    func testSessionChecked_noSession_staysOnSignIn() async {
+        var state = AppFeature.State()
+        state.hasAcceptedDisclaimer = true
+        state.phase = .signIn
+
+        let store = TestStore(initialState: state) {
+            AppFeature()
+        }
+
+        await store.send(.sessionChecked(nil))
     }
 }
