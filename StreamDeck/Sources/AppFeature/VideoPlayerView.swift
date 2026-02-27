@@ -160,6 +160,13 @@ public struct VideoPlayerView: View {
             // Transport controls
             transportControls
 
+            // Scrubber (VOD only — live channels have no duration)
+            if !store.isLiveChannel, let duration = store.currentDurationMs, duration > 0 {
+                scrubberBar(duration: duration)
+                    .padding(.horizontal, 40)
+                    .padding(.top, 8)
+            }
+
             Spacer()
 
             HStack {
@@ -218,6 +225,61 @@ public struct VideoPlayerView: View {
         .padding(20)
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    // MARK: - Scrubber
+
+    @State private var isScrubbing = false
+    @State private var scrubPosition: Double = 0
+
+    private func scrubberBar(duration: Int) -> some View {
+        let position = isScrubbing ? scrubPosition : Double(store.currentPositionMs)
+        let durationDouble = Double(duration)
+
+        return HStack(spacing: 12) {
+            Text(formatTime(Int(position)))
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.8))
+                .monospacedDigit()
+                .frame(minWidth: 50, alignment: .trailing)
+
+            Slider(
+                value: Binding(
+                    get: { position },
+                    set: { newValue in
+                        scrubPosition = newValue
+                    }
+                ),
+                in: 0...durationDouble
+            ) { editing in
+                isScrubbing = editing
+                if !editing {
+                    store.send(.scrubberSeeked(positionMs: Int(scrubPosition)))
+                }
+            }
+            .tint(.white)
+
+            Text("-\(formatTime(max(0, duration - Int(position))))")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.8))
+                .monospacedDigit()
+                .frame(minWidth: 50, alignment: .leading)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func formatTime(_ ms: Int) -> String {
+        let totalSeconds = ms / 1000
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        let seconds = totalSeconds % 60
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        }
+        return String(format: "%d:%02d", minutes, seconds)
     }
 
     // MARK: - Status Overlay

@@ -165,8 +165,8 @@ struct VLCKitWrapperView: UIViewRepresentable {
                 durationMs = nil
             }
 
-            // Report time updates every ~10 seconds to match AVPlayer behavior
-            if abs(positionMs - lastReportedTimeMs) >= 10_000 {
+            // Report time updates every ~500ms for scrubber responsiveness
+            if abs(positionMs - lastReportedTimeMs) >= 500 {
                 lastReportedTimeMs = positionMs
                 onTimeUpdate(positionMs, durationMs)
             }

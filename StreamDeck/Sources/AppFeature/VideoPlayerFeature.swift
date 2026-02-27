@@ -113,6 +113,7 @@ public struct VideoPlayerFeature {
         case playPauseTapped
         case seekForwardTapped
         case seekBackwardTapped
+        case scrubberSeeked(positionMs: Int)
         // Buffering feedback
         case bufferingTimerTick
         case delegate(Delegate)
@@ -598,6 +599,12 @@ public struct VideoPlayerFeature {
             case .seekBackwardTapped:
                 state.seekTargetMs = max(state.currentPositionMs - 10_000, 0)
                 state.seekToggleCount += 1
+                return .none
+
+            case let .scrubberSeeked(positionMs):
+                state.seekTargetMs = positionMs
+                state.seekToggleCount += 1
+                state.currentPositionMs = positionMs
                 return .none
 
             // MARK: - Buffering Feedback

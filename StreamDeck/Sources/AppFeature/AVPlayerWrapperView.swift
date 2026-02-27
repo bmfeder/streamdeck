@@ -183,8 +183,8 @@ struct AVPlayerWrapperView: UIViewControllerRepresentable {
                 }
             }
 
-            // Periodic time observer for progress tracking (every 10 seconds)
-            let interval = CMTime(seconds: 10, preferredTimescale: 1)
+            // Periodic time observer for progress tracking (every 0.5 seconds for scrubber)
+            let interval = CMTime(seconds: 0.5, preferredTimescale: 1)
             periodicTimeObserver = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
                 guard let self, let player = self.player, let item = player.currentItem else { return }
                 let positionMs = Int(time.seconds * 1000)
