@@ -12,6 +12,11 @@ import type { Route } from "./+types/root";
 import { getEnv, type ClientEnv } from "./lib/env";
 import "./app.css";
 
+export const headers: Route.HeadersFunction = () => ({
+  "Cross-Origin-Opener-Policy": "same-origin",
+  "Cross-Origin-Embedder-Policy": "credentialless",
+});
+
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
   {
