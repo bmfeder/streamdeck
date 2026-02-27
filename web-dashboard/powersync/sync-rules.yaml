@@ -1,0 +1,53 @@
+# ============================================================
+# StreamDeck PowerSync Sync Rules
+# Deploy via PowerSync Dashboard > Sync Rules
+# ============================================================
+#
+# Single per-user bucket: each authenticated user syncs only
+# their own data. PowerSync filters rows by user_id matching
+# the JWT's user ID claim.
+#
+# Conflict resolution: Last-Write-Wins (LWW) by updated_at.
+# The uploadData function in the client connector handles
+# upserts to Supabase, and Supabase triggers auto-update
+# updated_at on every write.
+
+bucket_definitions:
+  user_data:
+    # One bucket per authenticated user
+    parameters: SELECT request.user_id() AS user_id
+
+    data:
+      # Playlists (full sync)
+      - SELECT id, name, type, url, username, encrypted_password,
+               epg_url, refresh_hrs, is_active, sort_order,
+               last_sync, last_epg_sync, created_at, updated_at
+        FROM playlists
+        WHERE user_id = bucket.user_id
+
+      # Channels (full sync, including soft-deleted for purge logic)
+      - SELECT id, playlist_id, source_channel_id, tvg_id, name,
+               group_name, epg_id, logo_url, stream_url, channel_number,
+               is_favorite, is_deleted, deleted_at, created_at, updated_at
+        FROM channels
+        WHERE user_id = bucket.user_id
+
+      # VOD items (full sync)
+      - SELECT id, playlist_id, title, type, stream_url, logo_url,
+               genre, year, rating, duration, season_num, episode_num,
+               series_id, container_extension, plot, cast_list, director,
+               created_at, updated_at
+        FROM vod_items
+        WHERE user_id = bucket.user_id
+
+      # Watch progress (full sync)
+      - SELECT id, content_id, playlist_id, position_ms, duration_ms,
+               updated_at
+        FROM watch_progress
+        WHERE user_id = bucket.user_id
+
+      # User preferences (single row per user)
+      - SELECT user_id, preferred_engine, resume_playback_enabled,
+               buffer_timeout_seconds, updated_at
+        FROM user_preferences
+        WHERE user_id = bucket.user_id
