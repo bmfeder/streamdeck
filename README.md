@@ -2,7 +2,7 @@
 
 A blazing-fast, native media player for IPTV and Emby with a web dashboard for remote management.
 
-**Status:** Phase 3 complete (734 tests) — Web dashboard in progress
+**Status:** Phase 4 in progress — 734 Swift tests, web dashboard built
 
 ## Overview
 
@@ -34,9 +34,14 @@ streamdeck/
 │   │   ├── Repositories/    Data repos, import services, sync
 │   │   └── AppFeature/      TCA features, views, dependencies
 │   └── Tests/
-├── web-dashboard/       Web dashboard (React Router 7 + Supabase)
+├── web-dashboard/       Supabase schema + PowerSync config
 │   ├── supabase/            SQL schema, RLS, indexes, triggers
 │   └── powersync/           Sync rules configuration
+├── web/                 React Router 7 web dashboard
+│   ├── app/components/      Sidebar, topbar, HLS player, dialogs
+│   ├── app/hooks/           PowerSync queries, auth state
+│   ├── app/lib/             PowerSync provider, Supabase clients
+│   └── app/routes/          12 routes (auth, dashboard, screens)
 ├── docs/                Design specification
 └── tasks/               Task tracker
 ```
@@ -59,11 +64,13 @@ xcodebuild -scheme StreamDeck -destination 'generic/platform=tvOS' build CODE_SI
 xcodebuild -scheme StreamDeck-iOS -destination 'generic/platform=iOS' build CODE_SIGNING_ALLOWED=NO -skipMacroValidation
 ```
 
-### Web Dashboard (coming soon)
+### Web Dashboard
 ```bash
-cd web-dashboard
+cd web
+cp .env.example .env    # Configure Supabase + PowerSync URLs
 npm install
-npm run dev         # http://localhost:5173
+npm run dev             # http://localhost:5173
+npm run build           # Production build
 ```
 
 ## Completed Features
@@ -97,10 +104,23 @@ npm run dev         # http://localhost:5173
 ### Phase 4: Web Dashboard (in progress)
 - Supabase SQL schema (5 tables, 20 RLS policies, 15 indexes)
 - PowerSync sync rules for bidirectional sync
-- Next: React Router 7 dashboard, then Swift app PowerSync integration
+- React Router 7 dashboard with 12 routes, 7 components:
+  - Apple Sign In via Supabase OAuth
+  - Sources: Add/delete M3U/Xtream/Emby playlists
+  - Live TV: Channel grid with group filter, search, favorites
+  - Movies: Poster grid with genre filter, detail panel
+  - TV Shows: Series grid with season/episode drill-down
+  - History: Watch progress with progress bars, clear all
+  - Settings: Player engine, resume toggle, buffer timeout
+  - HLS live preview player (hls.js)
+  - PowerSync reactive queries (client-side, SSR-safe)
+  - Dark theme with #00ff9d accent
+- Next: Swift app PowerSync integration (replace CloudKit)
 
 ## Documentation
 
 Open `docs/app-design-v2.html` in a browser for the full design specification including architecture, data model, roadmap, and NFR targets.
 
 See `web-dashboard/supabase/SETUP.md` for Supabase + PowerSync setup instructions.
+
+See `web/.env.example` for required environment variables to run the web dashboard.

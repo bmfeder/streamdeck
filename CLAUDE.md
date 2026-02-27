@@ -50,15 +50,17 @@ streamdeck/
 │   ├── Sources/Repositories/  ← Data repos, import services, CloudKit sync (190+ tests)
 │   ├── Sources/AppFeature/    ← TCA features: 8 tabs, video player, search, settings (300+ tests)
 │   └── Tests/
-├── web-dashboard/             ← Web dashboard (React Router 7 + Supabase + PowerSync)
+├── web-dashboard/             ← Supabase schema + PowerSync config
 │   ├── supabase/              ← SQL schema, RLS policies, indexes, triggers
-│   │   ├── schema.sql
-│   │   ├── indexes.sql
-│   │   ├── rls.sql
-│   │   ├── triggers.sql
-│   │   └── SETUP.md
-│   └── powersync/
-│       └── sync-rules.yaml
+│   └── powersync/             ← Sync rules YAML
+├── web/                       ← React Router 7 web dashboard
+│   ├── app/
+│   │   ├── components/        ← Sidebar, topbar, HLS player, dialogs (7 components)
+│   │   ├── hooks/             ← useQuery (PowerSync), useAuth (Supabase)
+│   │   ├── lib/               ← PowerSync provider, Supabase clients, schema, utils
+│   │   └── routes/            ← 12 routes (auth, dashboard layout, 8 screens)
+│   ├── vite.config.ts
+│   └── package.json
 ├── Shared/                    ← KMP shared module (empty shell, for Android phase)
 ├── docs/
 │   └── app-design-v2.html    ← full design spec (open in browser to read)
@@ -71,13 +73,14 @@ streamdeck/
 - **Phase 1 — Complete**: Repositories, playlist import (M3U + Xtream), channel grid UI, video player (AVPlayer + retry/fallback), EPG basics + grid view
 - **Phase 2 — Complete**: VOD extraction (Movies + TV Shows), watch progress tracking, disclaimer persistence, Emby integration
 - **Phase 3 — Complete**: VLCKit fallback, channel switcher, sleep timer, channel number entry, now-playing mini-bar, empty/degraded states, user preferences, playlist editing, home recently-watched, CloudKit sync, universal search, iOS companion app, transport controls + scrubber, tvOS HIG refinement pass
-- **Phase 4 (Web Dashboard) — In Progress**: Supabase backend schema + PowerSync sync rules delivered (Phase 4.1). Next: React Router 7 web dashboard (Phase 4.2), then Swift app PowerSync integration (Phase 4.3).
+- **Phase 4 (Web Dashboard) — In Progress**: Supabase schema + PowerSync sync rules (4.1 done), React Router 7 web dashboard (4.2 done). Next: Swift app PowerSync integration (4.3).
 - Total: **734 tests** across 8 targets, all passing
+- Web dashboard: 43 files, 12 routes, 7 components, clean typecheck + production build
 - GitHub Actions CI: 3 jobs (Swift tests + tvOS build + iOS build) on macos-26
 
 ## What to Build Next (Phase 4: Web Dashboard)
 1. ~~Supabase SQL schema, RLS, PowerSync sync rules~~ — DONE (web-dashboard/supabase/)
-2. React Router 7 web dashboard (auth, playlist CRUD, channel/VOD browsing, HLS preview)
+2. ~~React Router 7 web dashboard~~ — DONE (web/)
 3. Swift app: replace CloudKit with PowerSync + Supabase auth
 4. Polish: sync status, error handling, data export
 

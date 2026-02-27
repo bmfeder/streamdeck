@@ -1,87 +1,67 @@
-# Welcome to React Router!
+# StreamDeck Web Dashboard
 
-A modern, production-ready template for building full-stack React applications using React Router.
+Web-based management dashboard for StreamDeck IPTV playlists. Built with React Router 7 (Framework Mode), Tailwind CSS v4, and PowerSync for real-time bidirectional sync with the tvOS/iOS app.
 
-[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/remix-run/react-router-templates/tree/main/default)
+## Stack
 
-## Features
+- **Framework**: React Router 7 (SSR + client)
+- **Styling**: Tailwind CSS v4, dark theme (#00ff9d accent)
+- **Auth**: Apple Sign In via Supabase OAuth
+- **Sync**: PowerSync (local-first SQLite via WASM, syncs to Supabase)
+- **Player**: hls.js for HLS stream preview
+- **Icons**: lucide-react
 
-- 🚀 Server-side rendering
-- ⚡️ Hot Module Replacement (HMR)
-- 📦 Asset bundling and optimization
-- 🔄 Data loading and mutations
-- 🔒 TypeScript by default
-- 🎉 TailwindCSS for styling
-- 📖 [React Router docs](https://reactrouter.com/)
-
-## Getting Started
-
-### Installation
-
-Install the dependencies:
+## Setup
 
 ```bash
+cp .env.example .env    # Add your Supabase + PowerSync credentials
 npm install
+npm run dev             # http://localhost:5173
 ```
 
-### Development
+Required environment variables (see `.env.example`):
+- `SUPABASE_URL` — Supabase project URL
+- `SUPABASE_ANON_KEY` — Supabase anon/public key
+- `POWERSYNC_URL` — PowerSync Cloud instance URL
 
-Start the development server with HMR:
+## Architecture
+
+- **Server loaders** fetch initial data from Supabase (fast SSR)
+- **PowerSync** initializes client-side via dynamic imports (avoids WASM in SSR)
+- **`useQuery` hook** watches PowerSync for reactive updates after hydration
+- COOP/COEP headers configured for SharedArrayBuffer (PowerSync WASM)
+
+## Routes
+
+| Path | Description |
+|------|-------------|
+| `/login` | Apple Sign In |
+| `/auth/callback` | OAuth code exchange |
+| `/dashboard/playlists` | Source management (add/delete M3U/Xtream/Emby) |
+| `/dashboard/playlists/:id` | Playlist detail — channels, search, favorites, HLS preview |
+| `/dashboard/channels` | Live TV grid — group filter, search, favorites |
+| `/dashboard/movies` | Movie catalog — genre filter, detail panel |
+| `/dashboard/tvshows` | TV shows — series drill-down, season/episode |
+| `/dashboard/progress` | Watch history — progress bars, clear |
+| `/dashboard/settings` | Preferences — player engine, resume, buffer timeout |
+
+## File Structure
+
+```
+app/
+├── components/          7 components (sidebar, topbar, hls-player, etc.)
+├── hooks/               useQuery (PowerSync), useAuth (Supabase)
+├── lib/                 PowerSync provider, Supabase clients, schema, utils
+├── routes/              12 route files
+├── root.tsx             Root layout with env loader
+├── routes.ts            Route configuration
+└── app.css              Dark theme with Tailwind v4 @theme
+```
+
+## Build
 
 ```bash
-npm run dev
+npm run build           # Production build (client + server)
+npm run start           # Serve production build
+npm run typecheck       # TypeScript check
 ```
-
-Your application will be available at `http://localhost:5173`.
-
-## Building for Production
-
-Create a production build:
-
-```bash
-npm run build
-```
-
-## Deployment
-
-### Docker Deployment
-
-To build and run using Docker:
-
-```bash
-docker build -t my-app .
-
-# Run the container
-docker run -p 3000:3000 my-app
-```
-
-The containerized application can be deployed to any platform that supports Docker, including:
-
-- AWS ECS
-- Google Cloud Run
-- Azure Container Apps
-- Digital Ocean App Platform
-- Fly.io
-- Railway
-
-### DIY Deployment
-
-If you're familiar with deploying Node applications, the built-in app server is production-ready.
-
-Make sure to deploy the output of `npm run build`
-
-```
-├── package.json
-├── package-lock.json (or pnpm-lock.yaml, or bun.lockb)
-├── build/
-│   ├── client/    # Static assets
-│   └── server/    # Server-side code
-```
-
-## Styling
-
-This template comes with [Tailwind CSS](https://tailwindcss.com/) already configured for a simple default starting experience. You can use whatever CSS framework you prefer.
-
----
-
-Built with ❤️ using React Router.
