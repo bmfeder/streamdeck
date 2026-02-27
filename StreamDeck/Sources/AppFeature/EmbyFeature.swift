@@ -431,7 +431,7 @@ public struct EmbyView: View {
     }
 
     #if os(tvOS)
-    private let columns = [GridItem(.adaptive(minimum: 180), spacing: 30)]
+    private let columns = [GridItem(.adaptive(minimum: 220), spacing: 40)]
     #else
     private let columns = [GridItem(.adaptive(minimum: 120), spacing: 16)]
     #endif
@@ -519,7 +519,7 @@ public struct EmbyView: View {
             }
         }
         .pickerStyle(.segmented)
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 40)
         .padding(.vertical, 8)
     }
 
@@ -538,7 +538,7 @@ public struct EmbyView: View {
                 Spacer()
             } else {
                 ScrollView {
-                    LazyVGrid(columns: columns, spacing: 20) {
+                    LazyVGrid(columns: columns, spacing: 32) {
                         ForEach(store.displayedMovies, id: \.id) { movie in
                             Button {
                                 store.send(.movieTapped(movie))
@@ -553,7 +553,7 @@ public struct EmbyView: View {
                             .focused($focusedItemID, equals: movie.id)
                         }
                     }
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, 40)
                     .padding(.vertical, 20)
                 }
             }
@@ -575,7 +575,7 @@ public struct EmbyView: View {
                 Spacer()
             } else {
                 ScrollView {
-                    LazyVGrid(columns: columns, spacing: 20) {
+                    LazyVGrid(columns: columns, spacing: 32) {
                         ForEach(store.displayedSeries, id: \.id) { series in
                             Button {
                                 store.send(.seriesTapped(series))
@@ -589,7 +589,7 @@ public struct EmbyView: View {
                             .focused($focusedItemID, equals: series.id)
                         }
                     }
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, 40)
                     .padding(.vertical, 20)
                 }
             }
@@ -610,7 +610,7 @@ public struct EmbyView: View {
                 .buttonStyle(.plain)
                 Spacer()
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 40)
             .padding(.vertical, 8)
 
             if store.isLoadingEpisodes {
@@ -657,7 +657,7 @@ public struct EmbyView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 40)
             .padding(.vertical, 8)
         }
     }
@@ -677,7 +677,7 @@ public struct EmbyView: View {
                     .focused($focusedItemID, equals: episode.id)
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 40)
             .padding(.vertical, 12)
         }
     }
@@ -789,7 +789,7 @@ public struct EmbyView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 40)
             .padding(.vertical, 8)
         }
     }
@@ -803,7 +803,7 @@ public struct EmbyView: View {
                     genrePill(genre)
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 40)
             .padding(.vertical, 8)
         }
     }
@@ -856,7 +856,7 @@ public struct EmbyView: View {
         .padding(.vertical, 10)
         .background(Color.secondary.opacity(0.1))
         .clipShape(RoundedRectangle(cornerRadius: 12))
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 40)
         .padding(.vertical, 8)
     }
 
@@ -888,7 +888,7 @@ public struct EmbyView: View {
     private func errorView(_ message: String) -> some View {
         VStack(spacing: 16) {
             Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 48))
+                .font(.system(size: 56))
                 .foregroundStyle(.secondary)
             Text(message)
                 .foregroundStyle(.secondary)
@@ -904,7 +904,7 @@ public struct EmbyView: View {
     private func emptyContentMessage(_ message: String) -> some View {
         VStack(spacing: 16) {
             Image(systemName: "film.slash")
-                .font(.system(size: 48))
+                .font(.system(size: 56))
                 .foregroundStyle(.secondary)
             if store.isSearching {
                 Text("No results for \"\(store.searchQuery)\"")

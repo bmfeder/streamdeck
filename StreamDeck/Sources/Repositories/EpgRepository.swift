@@ -35,6 +35,28 @@ public struct EpgRepository: Sendable {
         }
     }
 
+    /// Fetches current programs for multiple channels in a single query.
+    /// Returns a dictionary keyed by channelEpgID.
+    public func getCurrentProgramsBatch(channelEpgIDs: [String], at: Int) throws -> [String: EpgProgramRecord] {
+        guard !channelEpgIDs.isEmpty else { return [:] }
+        return try dbManager.dbQueue.read { db in
+            let programs = try EpgProgramRecord
+                .filter(channelEpgIDs.contains(Column("channel_epg_id")))
+                .filter(Column("start_time") <= at)
+                .filter(Column("end_time") > at)
+                .order(Column("channel_epg_id"), Column("start_time").desc)
+                .fetchAll(db)
+            var result: [String: EpgProgramRecord] = [:]
+            for program in programs {
+                // Keep only the first (most recent start_time) per channel
+                if result[program.channelEpgID] == nil {
+                    result[program.channelEpgID] = program
+                }
+            }
+            return result
+        }
+    }
+
     public func getNextProgram(channelEpgID: String, after: Int) throws -> EpgProgramRecord? {
         try dbManager.dbQueue.read { db in
             try EpgProgramRecord
@@ -95,7 +117,7 @@ public struct EpgRepository: Sendable {
     public func searchPrograms(query: String, after: Int, limit: Int = 20) throws -> [EpgProgramRecord] {
         try dbManager.dbQueue.read { db in
             try EpgProgramRecord
-                .filter(Column("title").like("%\(query)%"))
+                .filter(Column("title").like("%\(escapeLikePattern(query))%", escape: "\\"))
                 .filter(Column("end_time") > after)
                 .order(Column("start_time").asc)
                 .limit(limit)

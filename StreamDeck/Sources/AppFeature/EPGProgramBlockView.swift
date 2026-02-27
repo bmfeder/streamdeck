@@ -17,8 +17,8 @@ struct EPGProgramBlockView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
         .frame(width: width, height: EPGGuideLayout.rowHeight, alignment: .leading)
         .background(isCurrent ? Color.accentColor.opacity(0.15) : Color.secondary.opacity(0.1))
         .clipShape(RoundedRectangle(cornerRadius: 6))

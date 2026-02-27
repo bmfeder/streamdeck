@@ -253,7 +253,14 @@ public struct VideoPlayerFeature {
                         .cancel(id: CancelID.bufferingTimer)
                     )
                 }
-                return .none
+                // Not playing — cancel progress timer; cancel buffering timer unless still loading
+                if status == .loading {
+                    return .cancel(id: CancelID.progressTimer)
+                }
+                return .merge(
+                    .cancel(id: CancelID.progressTimer),
+                    .cancel(id: CancelID.bufferingTimer)
+                )
 
             case .playerEncounteredError:
                 let attempt = state.retryCount + 1

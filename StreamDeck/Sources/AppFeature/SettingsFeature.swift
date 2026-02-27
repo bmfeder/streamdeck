@@ -472,7 +472,7 @@ public struct SettingsView: View {
                     .disabled(!store.isCloudKitAvailable || store.isSyncing)
                     if let result = store.lastSyncResult {
                         Text("\(result.playlistsUpdated) playlists, \(result.favoritesUpdated) favorites, \(result.progressUpdated) progress synced")
-                            .font(.caption)
+                            .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
                 }

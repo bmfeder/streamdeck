@@ -267,7 +267,7 @@ public struct SearchView: View {
             Text("Live TV")
                 .font(.title2)
                 .fontWeight(.bold)
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 40)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 16) {
@@ -284,7 +284,7 @@ public struct SearchView: View {
                         .focused($focusedItemID, equals: channel.id)
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 40)
             }
         }
     }
@@ -294,7 +294,7 @@ public struct SearchView: View {
             Text("Programs")
                 .font(.title2)
                 .fontWeight(.bold)
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 40)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 16) {
@@ -308,7 +308,7 @@ public struct SearchView: View {
                         .focused($focusedItemID, equals: program.id)
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 40)
             }
         }
     }
@@ -353,7 +353,7 @@ public struct SearchView: View {
             Text("Movies")
                 .font(.title2)
                 .fontWeight(.bold)
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 40)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 16) {
@@ -367,7 +367,7 @@ public struct SearchView: View {
                         .focused($focusedItemID, equals: movie.id)
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 40)
             }
         }
     }
@@ -377,7 +377,7 @@ public struct SearchView: View {
             Text("TV Shows")
                 .font(.title2)
                 .fontWeight(.bold)
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 40)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 16) {
@@ -391,7 +391,7 @@ public struct SearchView: View {
                         .focused($focusedItemID, equals: series.id)
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 40)
             }
         }
     }
@@ -424,7 +424,7 @@ public struct SearchView: View {
     private var noResultsView: some View {
         VStack(spacing: 16) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 48))
+                .font(.system(size: 56))
                 .foregroundStyle(.secondary)
             Text("No results for \"\(store.searchQuery)\"")
                 .font(.title3)

@@ -305,7 +305,7 @@ public struct LiveTVView: View {
     }
 
     #if os(tvOS)
-    private let columns = [GridItem(.adaptive(minimum: 260), spacing: 30)]
+    private let columns = [GridItem(.adaptive(minimum: 300), spacing: 40)]
     #else
     private let columns = [GridItem(.adaptive(minimum: 130), spacing: 16)]
     #endif
@@ -359,7 +359,7 @@ public struct LiveTVView: View {
             searchField
 
             ScrollView {
-                LazyVGrid(columns: columns, spacing: 20) {
+                LazyVGrid(columns: columns, spacing: 32) {
                     ForEach(store.displayedChannels, id: \.id) { channel in
                         Button {
                             store.send(.channelTapped(channel))
@@ -384,7 +384,7 @@ public struct LiveTVView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 40)
                 .padding(.vertical, 20)
             }
         }
@@ -400,7 +400,7 @@ public struct LiveTVView: View {
                         store.send(.playlistSelected(playlist.id))
                     } label: {
                         Text(playlist.name)
-                            .font(.subheadline)
+                            .font(.body)
                             .fontWeight(store.selectedPlaylistID == playlist.id ? .bold : .regular)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
@@ -414,7 +414,7 @@ public struct LiveTVView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 40)
             .padding(.vertical, 8)
         }
     }
@@ -428,7 +428,7 @@ public struct LiveTVView: View {
                     groupPill(group)
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 40)
             .padding(.vertical, 8)
         }
     }
@@ -498,7 +498,7 @@ public struct LiveTVView: View {
     private func errorView(_ message: String) -> some View {
         VStack(spacing: 16) {
             Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 48))
+                .font(.system(size: 56))
                 .foregroundStyle(.secondary)
             Text(message)
                 .foregroundStyle(.secondary)
@@ -529,7 +529,7 @@ public struct LiveTVView: View {
     private var emptyChannelsView: some View {
         VStack(spacing: 16) {
             Image(systemName: "tv.slash")
-                .font(.system(size: 48))
+                .font(.system(size: 56))
                 .foregroundStyle(.secondary)
             if store.isSearching {
                 Text("No channels match \"\(store.searchQuery)\"")

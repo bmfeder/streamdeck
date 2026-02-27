@@ -243,7 +243,7 @@ public struct AppView: View {
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: "play.circle.fill")
-                    .font(.title3)
+                    .font(.title2)
                     .foregroundStyle(Color.accentColor)
 
                 if let channel = store.nowPlayingChannel {
@@ -258,7 +258,7 @@ public struct AppView: View {
                                 .fill(.red)
                                 .frame(width: 6, height: 6)
                             Text("LIVE")
-                                .font(.caption2)
+                                .font(.caption)
                                 .fontWeight(.bold)
                                 .foregroundStyle(.red)
                         }
@@ -276,9 +276,9 @@ public struct AppView: View {
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(.ultraThinMaterial)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+            .background(.regularMaterial)
             .clipShape(RoundedRectangle(cornerRadius: 12))
         }
         .buttonStyle(.plain)

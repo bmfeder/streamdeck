@@ -229,7 +229,7 @@ public struct HomeView: View {
 
     private var dashboardContent: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 32) {
+            VStack(alignment: .leading, spacing: 48) {
                 if !store.continueWatchingItems.isEmpty {
                     continueWatchingSection
                 }
@@ -247,10 +247,10 @@ public struct HomeView: View {
     // MARK: - Continue Watching
 
     #if os(tvOS)
-    private let posterWidth: CGFloat = 180
-    private let posterHeight: CGFloat = 270
-    private let channelWidth: CGFloat = 260
-    private let channelHeight: CGFloat = 156
+    private let posterWidth: CGFloat = 220
+    private let posterHeight: CGFloat = 330
+    private let channelWidth: CGFloat = 300
+    private let channelHeight: CGFloat = 180
     #else
     private let posterWidth: CGFloat = 120
     private let posterHeight: CGFloat = 180
@@ -263,10 +263,10 @@ public struct HomeView: View {
             Text("Continue Watching")
                 .font(.title2)
                 .fontWeight(.bold)
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 40)
 
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 16) {
+                HStack(spacing: 24) {
                     ForEach(store.continueWatchingItems) { item in
                         Button {
                             store.send(.continueWatchingItemTapped(item))
@@ -281,7 +281,7 @@ public struct HomeView: View {
                         .focused($focusedItemID, equals: item.id)
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 40)
             }
         }
     }
@@ -293,10 +293,10 @@ public struct HomeView: View {
             Text("Recently Watched")
                 .font(.title2)
                 .fontWeight(.bold)
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 40)
 
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 16) {
+                HStack(spacing: 24) {
                     ForEach(store.recentChannels, id: \.id) { channel in
                         Button {
                             store.send(.recentChannelTapped(channel))
@@ -312,7 +312,7 @@ public struct HomeView: View {
                         .focused($focusedItemID, equals: channel.id)
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 40)
             }
         }
     }
@@ -324,10 +324,10 @@ public struct HomeView: View {
             Text("Favorites")
                 .font(.title2)
                 .fontWeight(.bold)
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 40)
 
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 16) {
+                HStack(spacing: 24) {
                     ForEach(store.favoriteChannels, id: \.id) { channel in
                         Button {
                             store.send(.favoriteChannelTapped(channel))
@@ -343,7 +343,7 @@ public struct HomeView: View {
                         .focused($focusedItemID, equals: channel.id)
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 40)
             }
         }
     }

@@ -2,11 +2,11 @@ import SwiftUI
 import Database
 
 #if os(tvOS)
-private let tileWidth: CGFloat = 260
-private let tileHeight: CGFloat = 156
+private let tileWidth: CGFloat = 300
+private let tileHeight: CGFloat = 180
 private let tileCornerRadius: CGFloat = 16
 private let nameFontSize: CGFloat = 29
-private let badgeFontSize: CGFloat = 22
+private let badgeFontSize: CGFloat = 24
 private let nowPlayingFontSize: CGFloat = 24
 #else
 private let tileWidth: CGFloat = 130
@@ -37,15 +37,19 @@ public struct ChannelTileView: View {
                 logoView
                     .frame(width: tileWidth, height: tileHeight)
                     .clipShape(RoundedRectangle(cornerRadius: tileCornerRadius))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: tileCornerRadius)
+                            .strokeBorder(Color.accentColor, lineWidth: isFocused ? 3 : 0)
+                    )
 
                 if let num = channel.channelNum {
                     Text("\(num)")
                         .font(.system(size: badgeFontSize, weight: .bold))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(.ultraThinMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
-                        .padding(4)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(.regularMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .padding(6)
                 }
             }
 
@@ -107,7 +111,7 @@ public struct ChannelTileView: View {
         ZStack {
             Color.secondary.opacity(0.2)
             Image(systemName: "tv")
-                .font(.title2)
+                .font(.title)
                 .foregroundStyle(.secondary)
         }
     }

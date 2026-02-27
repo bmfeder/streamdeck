@@ -52,13 +52,7 @@ extension EPGClient: DependencyKey {
             },
             fetchNowPlayingBatch: { channelEpgIDs in
                 let now = Int(Date().timeIntervalSince1970)
-                var result: [String: EpgProgramRecord] = [:]
-                for epgID in channelEpgIDs {
-                    if let program = try epgRepo.getCurrentProgram(channelEpgID: epgID, at: now) {
-                        result[epgID] = program
-                    }
-                }
-                return result
+                return try epgRepo.getCurrentProgramsBatch(channelEpgIDs: channelEpgIDs, at: now)
             },
             syncEPG: { playlistID in
                 try await service.importEPG(playlistID: playlistID)

@@ -117,7 +117,7 @@ public struct VodRepository: Sendable {
     public func searchVod(query: String, playlistID: String? = nil, type: String? = nil, limit: Int = 20) throws -> [VodItemRecord] {
         try dbManager.dbQueue.read { db in
             var request = VodItemRecord
-                .filter(Column("title").like("%\(query)%"))
+                .filter(Column("title").like("%\(escapeLikePattern(query))%", escape: "\\"))
 
             if let playlistID {
                 request = request.filter(Column("playlist_id") == playlistID)

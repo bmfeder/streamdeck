@@ -137,7 +137,7 @@ public struct VideoPlayerView: View {
                     store.send(.dismissTapped)
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.title2)
+                        .font(.title)
                         .foregroundStyle(.white)
                 }
                 .buttonStyle(.plain)
@@ -148,10 +148,10 @@ public struct VideoPlayerView: View {
 
                 if let engine = store.activeEngine {
                     Text(engine == .avPlayer ? "AVPlayer" : "VLCKit")
-                        .font(.caption)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(.ultraThinMaterial)
+                        .font(.subheadline)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(.regularMaterial)
                         .clipShape(Capsule())
                 }
             }
@@ -225,7 +225,7 @@ public struct VideoPlayerView: View {
             .buttonStyle(.plain)
         }
         .padding(20)
-        .background(.ultraThinMaterial)
+        .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
@@ -246,10 +246,10 @@ public struct VideoPlayerView: View {
 
         return HStack(spacing: 12) {
             Text(formatTime(Int(position)))
-                .font(.caption)
+                .font(.subheadline)
                 .foregroundStyle(.white.opacity(0.8))
                 .monospacedDigit()
-                .frame(minWidth: 50, alignment: .trailing)
+                .frame(minWidth: 60, alignment: .trailing)
 
             #if os(iOS)
             Slider(
@@ -273,14 +273,14 @@ public struct VideoPlayerView: View {
                 ZStack(alignment: .leading) {
                     Capsule()
                         .fill(Color.white.opacity(0.3))
-                        .frame(height: 6)
+                        .frame(height: 8)
                     Capsule()
                         .fill(Color.white)
                         .frame(
                             width: durationDouble > 0
                                 ? geo.size.width * CGFloat(position / durationDouble)
                                 : 0,
-                            height: 6
+                            height: 8
                         )
                 }
                 .frame(maxHeight: .infinity, alignment: .center)
@@ -289,14 +289,14 @@ public struct VideoPlayerView: View {
             #endif
 
             Text("-\(formatTime(max(0, duration - Int(position))))")
-                .font(.caption)
+                .font(.subheadline)
                 .foregroundStyle(.white.opacity(0.8))
                 .monospacedDigit()
-                .frame(minWidth: 50, alignment: .leading)
+                .frame(minWidth: 60, alignment: .leading)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-        .background(.ultraThinMaterial)
+        .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
@@ -351,27 +351,27 @@ public struct VideoPlayerView: View {
             ProgressView()
                 .tint(.white)
             Text("Reconnecting (\(attempt)/\(VideoPlayerFeature.State.maxRetriesPerEngine))...")
-                .font(.subheadline)
+                .font(.body)
                 .foregroundStyle(.white.opacity(0.8))
             Text(engine == .avPlayer ? "AVPlayer" : "VLCKit")
-                .font(.caption)
+                .font(.subheadline)
                 .foregroundStyle(.white.opacity(0.5))
         }
         .padding()
-        .background(.ultraThinMaterial)
+        .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     private var failedView: some View {
         VStack(spacing: 16) {
             Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 40))
+                .font(.system(size: 56))
                 .foregroundStyle(.yellow)
             Text("Playback Failed")
                 .font(.headline)
                 .foregroundStyle(.white)
             Text("Unable to play this stream after multiple attempts.")
-                .font(.subheadline)
+                .font(.body)
                 .foregroundStyle(.white.opacity(0.7))
                 .multilineTextAlignment(.center)
             HStack(spacing: 16) {
@@ -386,17 +386,17 @@ public struct VideoPlayerView: View {
             }
         }
         .padding(24)
-        .background(.ultraThinMaterial)
+        .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
     private func errorView(_ error: PlayerError) -> some View {
         VStack(spacing: 12) {
             Image(systemName: "exclamationmark.circle")
-                .font(.system(size: 32))
+                .font(.system(size: 56))
                 .foregroundStyle(.red)
             Text(errorMessage(for: error))
-                .font(.subheadline)
+                .font(.body)
                 .foregroundStyle(.white)
                 .multilineTextAlignment(.center)
             Button("Retry") {
@@ -405,7 +405,7 @@ public struct VideoPlayerView: View {
             .buttonStyle(.borderedProminent)
         }
         .padding(24)
-        .background(.ultraThinMaterial)
+        .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
@@ -428,7 +428,7 @@ public struct VideoPlayerView: View {
 
             if store.bufferingElapsedSeconds >= store.bufferTimeoutSeconds {
                 Text("Stream is slow...")
-                    .font(.subheadline)
+                    .font(.body)
                     .foregroundStyle(.white.opacity(0.8))
 
                 if store.bufferingElapsedSeconds >= store.bufferTimeoutSeconds + 20 {
@@ -445,7 +445,7 @@ public struct VideoPlayerView: View {
                 }
             } else if store.bufferingElapsedSeconds > 0 {
                 Text("\(store.bufferingElapsedSeconds)s")
-                    .font(.caption)
+                    .font(.subheadline)
                     .foregroundStyle(.white.opacity(0.5))
                     .monospacedDigit()
             }
@@ -475,7 +475,7 @@ public struct VideoPlayerView: View {
                     ? Color.purple.opacity(0.6)
                     : Color.clear
             )
-            .background(.ultraThinMaterial)
+            .background(.regularMaterial)
             .clipShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -528,7 +528,7 @@ public struct VideoPlayerView: View {
             .buttonStyle(.plain)
         }
         .padding(24)
-        .background(.ultraThinMaterial)
+        .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
@@ -541,16 +541,16 @@ public struct VideoPlayerView: View {
                 .foregroundStyle(.white.opacity(0.6))
 
             Text(store.numberEntryDigits.isEmpty ? "_" : store.numberEntryDigits)
-                .font(.system(size: 48, weight: .bold, design: .monospaced))
+                .font(.system(size: 56, weight: .bold, design: .monospaced))
                 .foregroundStyle(.white)
-                .frame(minWidth: 120)
+                .frame(minWidth: 140)
 
             numberEntryStatusLine
 
             numberPad
         }
         .padding(24)
-        .background(.ultraThinMaterial)
+        .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
@@ -639,7 +639,7 @@ public struct VideoPlayerView: View {
                         .foregroundStyle(.white.opacity(0.8))
                     Spacer()
                     Text("Favorites")
-                        .font(.caption)
+                        .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.5))
                 }
                 .padding(.horizontal, 40)
@@ -710,14 +710,14 @@ public struct VideoPlayerView: View {
             )
 
             Text(channel.name)
-                .font(.caption)
+                .font(.subheadline)
                 .foregroundStyle(.white)
                 .lineLimit(1)
                 .frame(width: switcherTileWidth)
 
             if let nowPlaying {
                 Text(nowPlaying)
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.white.opacity(0.6))
                     .lineLimit(1)
                     .frame(width: switcherTileWidth)

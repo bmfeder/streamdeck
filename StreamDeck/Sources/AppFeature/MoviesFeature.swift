@@ -263,7 +263,7 @@ public struct MoviesView: View {
     }
 
     #if os(tvOS)
-    private let columns = [GridItem(.adaptive(minimum: 180), spacing: 30)]
+    private let columns = [GridItem(.adaptive(minimum: 220), spacing: 40)]
     #else
     private let columns = [GridItem(.adaptive(minimum: 120), spacing: 16)]
     #endif
@@ -317,7 +317,7 @@ public struct MoviesView: View {
             searchField
 
             ScrollView {
-                LazyVGrid(columns: columns, spacing: 20) {
+                LazyVGrid(columns: columns, spacing: 32) {
                     ForEach(store.displayedMovies, id: \.id) { movie in
                         Button {
                             store.send(.movieTapped(movie))
@@ -332,7 +332,7 @@ public struct MoviesView: View {
                         .focused($focusedMovieID, equals: movie.id)
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 40)
                 .padding(.vertical, 20)
             }
         }
@@ -362,7 +362,7 @@ public struct MoviesView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 40)
             .padding(.vertical, 8)
         }
     }
@@ -376,7 +376,7 @@ public struct MoviesView: View {
                     genrePill(genre)
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 40)
             .padding(.vertical, 8)
         }
     }
@@ -429,7 +429,7 @@ public struct MoviesView: View {
         .padding(.vertical, 10)
         .background(Color.secondary.opacity(0.1))
         .clipShape(RoundedRectangle(cornerRadius: 12))
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 40)
         .padding(.vertical, 8)
     }
 
@@ -446,7 +446,7 @@ public struct MoviesView: View {
     private func errorView(_ message: String) -> some View {
         VStack(spacing: 16) {
             Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 48))
+                .font(.system(size: 56))
                 .foregroundStyle(.secondary)
             Text(message)
                 .foregroundStyle(.secondary)
@@ -477,7 +477,7 @@ public struct MoviesView: View {
     private var emptyMoviesView: some View {
         VStack(spacing: 16) {
             Image(systemName: "film.slash")
-                .font(.system(size: 48))
+                .font(.system(size: 56))
                 .foregroundStyle(.secondary)
             if store.isSearching {
                 Text("No movies match \"\(store.searchQuery)\"")

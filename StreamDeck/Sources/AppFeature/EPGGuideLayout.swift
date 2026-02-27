@@ -4,8 +4,8 @@ import SwiftUI
 #if os(tvOS)
 public enum EPGGuideLayout {
     public static let pointsPerMinute: CGFloat = 4.0
-    public static let rowHeight: CGFloat = 80.0
-    public static let headerHeight: CGFloat = 50.0
+    public static let rowHeight: CGFloat = 96.0
+    public static let headerHeight: CGFloat = 60.0
     public static let sidebarWidth: CGFloat = 240.0
     public static let minBlockWidth: CGFloat = 60.0
     public static let titleFontSize: CGFloat = 26.0

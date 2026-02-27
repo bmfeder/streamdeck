@@ -2,11 +2,11 @@ import SwiftUI
 import Database
 
 #if os(tvOS)
-private let posterWidth: CGFloat = 180
-private let posterHeight: CGFloat = 270
+private let posterWidth: CGFloat = 220
+private let posterHeight: CGFloat = 330
 private let posterCornerRadius: CGFloat = 12
-private let titleFontSize: CGFloat = 26
-private let subtitleFontSize: CGFloat = 20
+private let titleFontSize: CGFloat = 28
+private let subtitleFontSize: CGFloat = 22
 #else
 private let posterWidth: CGFloat = 120
 private let posterHeight: CGFloat = 180
@@ -35,6 +35,10 @@ public struct VodPosterTileView: View {
                 posterImage
                     .frame(width: posterWidth, height: posterHeight)
                     .clipShape(RoundedRectangle(cornerRadius: posterCornerRadius))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: posterCornerRadius)
+                            .strokeBorder(Color.accentColor, lineWidth: isFocused ? 3 : 0)
+                    )
 
                 if let progress, progress > 0 {
                     progressBar(fraction: progress)
@@ -86,7 +90,7 @@ public struct VodPosterTileView: View {
                     .frame(width: geo.size.width * min(max(fraction, 0), 1))
             }
         }
-        .frame(width: posterWidth, height: 4)
+        .frame(width: posterWidth, height: 6)
         .clipShape(RoundedRectangle(cornerRadius: 2))
         .padding(.bottom, 2)
     }
@@ -119,7 +123,7 @@ public struct VodPosterTileView: View {
         ZStack {
             Color.secondary.opacity(0.2)
             Image(systemName: item.type == "series" ? "tv" : "film")
-                .font(.title2)
+                .font(.title)
                 .foregroundStyle(.secondary)
         }
     }

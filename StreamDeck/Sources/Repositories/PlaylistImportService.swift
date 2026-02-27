@@ -91,16 +91,23 @@ public struct PlaylistImportService: Sendable {
             throw PlaylistImportError.playlistNotFound
         }
 
+        let result: PlaylistImportResult
         switch playlist.type {
         case "m3u":
-            return try await refreshM3U(playlist: playlist)
+            result = try await refreshM3U(playlist: playlist)
         case "xtream":
-            return try await refreshXtream(playlist: playlist)
+            result = try await refreshXtream(playlist: playlist)
         case "emby":
-            return try await refreshEmby(playlist: playlist)
+            result = try await refreshEmby(playlist: playlist)
         default:
             throw PlaylistImportError.playlistNotFound
         }
+
+        // Purge channels soft-deleted more than 30 days ago
+        let thirtyDaysAgo = Int(Date().timeIntervalSince1970) - (30 * 24 * 60 * 60)
+        try? channelRepo.purgeDeleted(olderThan: thirtyDaysAgo)
+
+        return result
     }
 
     private func refreshM3U(playlist: PlaylistRecord) async throws -> PlaylistImportResult {

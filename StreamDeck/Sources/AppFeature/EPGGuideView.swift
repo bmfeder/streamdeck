@@ -102,19 +102,19 @@ public struct EPGGuideView: View {
                     )
                     .offset(x: scrollOffset.x + EPGGuideLayout.sidebarWidth)
                     .frame(height: EPGGuideLayout.headerHeight)
-                    .background(.ultraThinMaterial)
+                    .background(.regularMaterial)
                     .zIndex(2)
 
                     // Channel sidebar (fixed horizontally, scrolls vertically)
                     EPGChannelSidebarView(channels: store.channels)
                         .offset(y: scrollOffset.y + EPGGuideLayout.headerHeight)
                         .frame(width: EPGGuideLayout.sidebarWidth)
-                        .background(.ultraThinMaterial)
+                        .background(.regularMaterial)
                         .zIndex(2)
 
                     // Corner cell (top-left intersection)
                     Rectangle()
-                        .fill(.ultraThinMaterial)
+                        .fill(.regularMaterial)
                         .frame(
                             width: EPGGuideLayout.sidebarWidth,
                             height: EPGGuideLayout.headerHeight
@@ -248,7 +248,7 @@ public struct EPGGuideView: View {
                         store.send(.playlistSelected(playlist.id))
                     } label: {
                         Text(playlist.name)
-                            .font(.subheadline)
+                            .font(.body)
                             .fontWeight(store.selectedPlaylistID == playlist.id ? .bold : .regular)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
@@ -280,7 +280,7 @@ public struct EPGGuideView: View {
     private func errorView(_ message: String) -> some View {
         VStack(spacing: 16) {
             Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 48))
+                .font(.system(size: 56))
                 .foregroundStyle(.secondary)
             Text(message)
                 .foregroundStyle(.secondary)
@@ -311,7 +311,7 @@ public struct EPGGuideView: View {
     private var emptyGuideView: some View {
         VStack(spacing: 16) {
             Image(systemName: "calendar.badge.exclamationmark")
-                .font(.system(size: 48))
+                .font(.system(size: 56))
                 .foregroundStyle(.secondary)
             Text("Guide data unavailable")
                 .font(.headline)

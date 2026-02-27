@@ -140,7 +140,7 @@ public struct FavoritesView: View {
     }
 
     #if os(tvOS)
-    private let columns = [GridItem(.adaptive(minimum: 260), spacing: 30)]
+    private let columns = [GridItem(.adaptive(minimum: 300), spacing: 40)]
     #else
     private let columns = [GridItem(.adaptive(minimum: 130), spacing: 16)]
     #endif
@@ -154,7 +154,7 @@ public struct FavoritesView: View {
                     emptyView
                 } else {
                     ScrollView {
-                        LazyVGrid(columns: columns, spacing: 20) {
+                        LazyVGrid(columns: columns, spacing: 32) {
                             ForEach(store.channels, id: \.id) { channel in
                                 Button {
                                     store.send(.channelTapped(channel))
@@ -176,7 +176,7 @@ public struct FavoritesView: View {
                                 }
                             }
                         }
-                        .padding(.horizontal, 20)
+                        .padding(.horizontal, 40)
                         .padding(.vertical, 20)
                     }
                 }

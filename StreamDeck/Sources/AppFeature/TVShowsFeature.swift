@@ -326,7 +326,7 @@ public struct TVShowsView: View {
     }
 
     #if os(tvOS)
-    private let columns = [GridItem(.adaptive(minimum: 180), spacing: 30)]
+    private let columns = [GridItem(.adaptive(minimum: 220), spacing: 40)]
     #else
     private let columns = [GridItem(.adaptive(minimum: 120), spacing: 16)]
     #endif
@@ -382,7 +382,7 @@ public struct TVShowsView: View {
             searchField
 
             ScrollView {
-                LazyVGrid(columns: columns, spacing: 20) {
+                LazyVGrid(columns: columns, spacing: 32) {
                     ForEach(store.displayedSeries, id: \.id) { series in
                         Button {
                             store.send(.seriesTapped(series))
@@ -396,7 +396,7 @@ public struct TVShowsView: View {
                         .focused($focusedItemID, equals: series.id)
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 40)
                 .padding(.vertical, 20)
             }
         }
@@ -417,7 +417,7 @@ public struct TVShowsView: View {
                 .buttonStyle(.plain)
                 Spacer()
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 40)
             .padding(.vertical, 8)
 
             if store.isLoadingEpisodes {
@@ -430,7 +430,7 @@ public struct TVShowsView: View {
                 Spacer()
                 VStack(spacing: 16) {
                     Image(systemName: "tv.slash")
-                        .font(.system(size: 48))
+                        .font(.system(size: 56))
                         .foregroundStyle(.secondary)
                     Text("No episodes available")
                         .foregroundStyle(.secondary)
@@ -470,7 +470,7 @@ public struct TVShowsView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 40)
             .padding(.vertical, 8)
         }
     }
@@ -490,7 +490,7 @@ public struct TVShowsView: View {
                     .focused($focusedItemID, equals: episode.id)
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 40)
             .padding(.vertical, 12)
         }
     }
@@ -608,7 +608,7 @@ public struct TVShowsView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 40)
             .padding(.vertical, 8)
         }
     }
@@ -622,7 +622,7 @@ public struct TVShowsView: View {
                     genrePill(genre)
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 40)
             .padding(.vertical, 8)
         }
     }
@@ -675,7 +675,7 @@ public struct TVShowsView: View {
         .padding(.vertical, 10)
         .background(Color.secondary.opacity(0.1))
         .clipShape(RoundedRectangle(cornerRadius: 12))
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 40)
         .padding(.vertical, 8)
     }
 
@@ -692,7 +692,7 @@ public struct TVShowsView: View {
     private func errorView(_ message: String) -> some View {
         VStack(spacing: 16) {
             Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 48))
+                .font(.system(size: 56))
                 .foregroundStyle(.secondary)
             Text(message)
                 .foregroundStyle(.secondary)
@@ -723,7 +723,7 @@ public struct TVShowsView: View {
     private var emptySeriesView: some View {
         VStack(spacing: 16) {
             Image(systemName: "tv.slash")
-                .font(.system(size: 48))
+                .font(.system(size: 56))
                 .foregroundStyle(.secondary)
             if store.isSearching {
                 Text("No shows match \"\(store.searchQuery)\"")

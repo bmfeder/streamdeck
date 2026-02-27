@@ -258,7 +258,7 @@ public struct ChannelRepository: Sendable {
         try dbManager.dbQueue.read { db in
             var request = ChannelRecord
                 .filter(Column("is_deleted") == false)
-                .filter(Column("name").like("%\(query)%"))
+                .filter(Column("name").like("%\(escapeLikePattern(query))%", escape: "\\"))
 
             if let playlistID {
                 request = request.filter(Column("playlist_id") == playlistID)
