@@ -112,14 +112,18 @@ Replace `<KEY_ID>` with your Apple Key ID. The output starts with `eyJ...`.
 6. Click **Deploy sync rules**
 7. Note down the **PowerSync instance URL**: `https://<instance-id>.powersync.journeyapps.com`
 
-## Step 5: Configure PowerSync JWT
+## Step 5: Configure PowerSync Auth
 
 PowerSync needs to verify Supabase JWTs:
 
 1. In the PowerSync dashboard, go to **Instance > Auth**
-2. Set the JWT issuer to: `https://<project-id>.supabase.co/auth/v1`
-3. Set the JWKS URI to: `https://<project-id>.supabase.co/auth/v1/.well-known/jwks.json`
-4. Alternatively, paste your Supabase JWT secret (found in Settings > API > JWT Secret)
+2. Check **Use Supabase Auth**
+3. In the **JWKS URI** field, enter:
+   ```
+   https://<project-id>.supabase.co/auth/v1/.well-known/jwks.json
+   ```
+4. Leave all other fields empty (Supabase JWT Secret, JWKS, JWT Audience, HS256 tokens)
+5. Save
 
 ## Step 6: Verify
 
