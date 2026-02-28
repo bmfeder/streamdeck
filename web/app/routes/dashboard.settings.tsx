@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { redirect } from "react-router";
-import { Settings, Save, Check } from "lucide-react";
+import { Save, Check, Download } from "lucide-react";
 import type { Route } from "./+types/dashboard.settings";
 import { createSupabaseServerClient } from "~/lib/supabase.server";
 import { useQuery } from "~/hooks/use-query";
@@ -49,6 +49,7 @@ export default function SettingsPage({ loaderData }: Route.ComponentProps) {
   );
   const [bufferTimeout, setBufferTimeout] = useState(prefs.buffer_timeout_seconds || 10);
   const [saved, setSaved] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   // Sync form state when live data updates
   useEffect(() => {
@@ -80,6 +81,44 @@ export default function SettingsPage({ loaderData }: Route.ComponentProps) {
 
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleExport = async () => {
+    if (!db) return;
+    setExporting(true);
+
+    try {
+      const [playlists, channels, vodItems, watchProgress, preferences] = await Promise.all([
+        db.getAll("SELECT * FROM playlists"),
+        db.getAll("SELECT * FROM channels"),
+        db.getAll("SELECT * FROM vod_items"),
+        db.getAll("SELECT * FROM watch_progress"),
+        db.getAll("SELECT * FROM user_preferences"),
+      ]);
+
+      const exportData = {
+        exportedAt: new Date().toISOString(),
+        playlists,
+        channels,
+        vodItems,
+        watchProgress,
+        preferences,
+      };
+
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `streamdeck-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Export failed:", err);
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
@@ -185,6 +224,33 @@ export default function SettingsPage({ loaderData }: Route.ComponentProps) {
               <span>5s</span>
               <span>30s</span>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Data & Privacy */}
+      <section className="mb-8">
+        <h2 className="mb-4 text-lg font-semibold">Data & Privacy</h2>
+        <div className="rounded-xl border border-border bg-surface-raised p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">Export My Data</p>
+              <p className="text-xs text-text-muted">
+                Download all your data as a JSON file
+              </p>
+            </div>
+            <button
+              onClick={handleExport}
+              disabled={!db || exporting}
+              className={cn(
+                "flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+                "bg-surface-overlay text-text-secondary hover:text-text-primary",
+                (!db || exporting) && "opacity-50 cursor-not-allowed"
+              )}
+            >
+              <Download className="h-4 w-4" />
+              {exporting ? "Exporting..." : "Export"}
+            </button>
           </div>
         </div>
       </section>

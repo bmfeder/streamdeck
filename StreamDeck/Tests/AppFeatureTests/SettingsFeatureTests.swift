@@ -533,6 +533,101 @@ final class SettingsFeatureTests: XCTestCase {
         }
     }
 
+    // MARK: - Sync Status
+
+    func testSyncStatusUpdated_connected() async {
+        let store = TestStore(initialState: SettingsFeature.State()) {
+            SettingsFeature()
+        }
+
+        await store.send(.syncStatusUpdated(.connected)) {
+            $0.syncStatus = .connected
+        }
+    }
+
+    func testSyncStatusUpdated_error() async {
+        let store = TestStore(initialState: SettingsFeature.State()) {
+            SettingsFeature()
+        }
+
+        await store.send(.syncStatusUpdated(.error("Network error"))) {
+            $0.syncStatus = .error("Network error")
+        }
+    }
+
+    func testRetrySyncTapped_isNoOp_inSettings() async {
+        // Handled by parent AppFeature, not SettingsFeature
+        let store = TestStore(initialState: SettingsFeature.State()) {
+            SettingsFeature()
+        }
+        await store.send(.retrySyncTapped)
+    }
+
+    // MARK: - Data Export
+
+    func testExportDataTapped_setsExporting() async {
+        let store = TestStore(initialState: SettingsFeature.State()) {
+            SettingsFeature()
+        } withDependencies: {
+            $0.vodListClient.fetchPlaylists = { [] }
+            $0.channelListClient.fetchGroupedChannels = { _ in
+                GroupedChannels(groups: [], channelsByGroup: [:])
+            }
+            $0.vodListClient.searchVod = { _, _, _ in [] }
+            $0.watchProgressClient.getUnfinished = { _ in [] }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.exportDataTapped) {
+            $0.isExporting = true
+        }
+        await store.skipReceivedActions()
+    }
+
+    func testExportDataReady_setsURL() async {
+        let url = URL(fileURLWithPath: "/tmp/test.json")
+        let store = TestStore(initialState: SettingsFeature.State()) {
+            SettingsFeature()
+        }
+
+        var state = SettingsFeature.State()
+        state.isExporting = true
+        let store2 = TestStore(initialState: state) {
+            SettingsFeature()
+        }
+
+        await store2.send(.exportDataReady(url)) {
+            $0.isExporting = false
+            $0.exportDataURL = url
+        }
+    }
+
+    func testExportDataDismissed_clearsURL() async {
+        var state = SettingsFeature.State()
+        state.exportDataURL = URL(fileURLWithPath: "/tmp/test.json")
+
+        let store = TestStore(initialState: state) {
+            SettingsFeature()
+        }
+
+        await store.send(.exportDataDismissed) {
+            $0.exportDataURL = nil
+        }
+    }
+
+    func testExportDataFailed_clearsExporting() async {
+        var state = SettingsFeature.State()
+        state.isExporting = true
+
+        let store = TestStore(initialState: state) {
+            SettingsFeature()
+        }
+
+        await store.send(.exportDataFailed) {
+            $0.isExporting = false
+        }
+    }
+
     // MARK: - Sign Out
 
     func testSignOut_isNoOp_inSettings() async {

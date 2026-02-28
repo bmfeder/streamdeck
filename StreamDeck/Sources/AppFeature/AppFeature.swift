@@ -46,6 +46,7 @@ public struct AppFeature {
         case acceptDisclaimerTapped
         case sessionChecked(AuthSession?)
         case powerSyncConnected
+        case powerSyncFailed(String)
         case signOutTapped
         case signedOut
         case stalePlaylistsRefreshed
@@ -109,6 +110,7 @@ public struct AppFeature {
                 return .none
 
             case .powerSyncConnected:
+                state.settings.syncStatus = .connected
                 let vod = vodListClient
                 let importClient = playlistImportClient
                 return .run { send in
@@ -122,6 +124,10 @@ public struct AppFeature {
                     }
                     await send(.stalePlaylistsRefreshed)
                 } catch: { _, _ in }
+
+            case let .powerSyncFailed(message):
+                state.settings.syncStatus = .error(message)
+                return .none
 
             case .stalePlaylistsRefreshed:
                 return .none
@@ -215,6 +221,10 @@ public struct AppFeature {
             case .settings(.signOutTapped):
                 return .send(.signOutTapped)
 
+            case .settings(.retrySyncTapped):
+                state.settings.syncStatus = .syncing
+                return connectPowerSync()
+
             case .home, .search, .liveTV, .guide, .movies, .tvShows, .emby, .favorites, .settings:
                 return .none
             }
@@ -225,6 +235,7 @@ public struct AppFeature {
         .run { send in
             guard let config = SyncConfig.fromInfoPlist(),
                   let url = URL(string: config.supabaseURL) else {
+                // No config = test/preview environment, proceed without sync
                 await send(.powerSyncConnected)
                 return
             }
@@ -233,8 +244,15 @@ public struct AppFeature {
                 supabase: supabase,
                 powersyncURL: config.powersyncURL
             )
-            try? await SyncDatabaseManager.shared.connect(connector: connector)
-            await send(.powerSyncConnected)
+            do {
+                try await SyncDatabaseManager.shared.connect(connector: connector)
+                await send(.powerSyncConnected)
+            } catch {
+                // Offline-first: local data still works, but notify UI of sync failure
+                await send(.powerSyncFailed(error.localizedDescription))
+                // Still send connected so stale refresh and app usage can proceed
+                await send(.powerSyncConnected)
+            }
         }
     }
 }

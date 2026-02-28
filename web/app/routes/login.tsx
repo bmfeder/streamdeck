@@ -1,4 +1,4 @@
-import { redirect, useOutletContext } from "react-router";
+import { redirect, useOutletContext, useSearchParams } from "react-router";
 import type { Route } from "./+types/login";
 import { createSupabaseServerClient } from "~/lib/supabase.server";
 import { getSupabaseBrowserClient } from "~/lib/supabase.client";
@@ -13,6 +13,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 export default function LoginPage() {
   const { env } = useOutletContext<AppContext>();
+  const [searchParams] = useSearchParams();
+  const authError = searchParams.get("error");
 
   const handleAppleSignIn = async () => {
     const supabase = getSupabaseBrowserClient(env);
@@ -36,6 +38,12 @@ export default function LoginPage() {
             Manage your IPTV playlists from anywhere
           </p>
         </div>
+
+        {authError && (
+          <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+            Authentication failed. Please try again.
+          </div>
+        )}
 
         <button
           onClick={handleAppleSignIn}

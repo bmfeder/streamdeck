@@ -533,4 +533,52 @@ final class AppFeatureTests: XCTestCase {
 
         await store.send(.sessionChecked(nil))
     }
+
+    // MARK: - Sync Error Handling
+
+    func testPowerSyncFailed_setsSyncError() async {
+        let store = TestStore(initialState: AppFeature.State()) {
+            AppFeature()
+        }
+
+        await store.send(.powerSyncFailed("Connection refused")) {
+            $0.settings.syncStatus = .error("Connection refused")
+        }
+    }
+
+    func testPowerSyncConnected_setsSyncStatusConnected() async {
+        let store = TestStore(initialState: AppFeature.State()) {
+            AppFeature()
+        } withDependencies: {
+            $0.vodListClient.fetchPlaylists = { [] }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.powerSyncConnected) {
+            $0.settings.syncStatus = .connected
+        }
+        await store.skipReceivedActions()
+    }
+
+    func testRetrySyncTapped_setsSyncingAndReconnects() async {
+        var state = AppFeature.State()
+        state.phase = .authenticated
+        state.settings.syncStatus = .error("Previous error")
+
+        let store = TestStore(initialState: state) {
+            AppFeature()
+        } withDependencies: {
+            $0.vodListClient.fetchPlaylists = { [] }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.settings(.retrySyncTapped)) {
+            $0.settings.syncStatus = .syncing
+        }
+        // connectPowerSync will send .powerSyncConnected (no SyncConfig in tests)
+        await store.receive(\.powerSyncConnected) {
+            $0.settings.syncStatus = .connected
+        }
+        await store.skipReceivedActions()
+    }
 }

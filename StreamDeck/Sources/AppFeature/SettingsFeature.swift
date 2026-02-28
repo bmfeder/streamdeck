@@ -1,7 +1,38 @@
 import ComposableArchitecture
 import Database
+import Foundation
 import Repositories
 import SwiftUI
+
+// MARK: - Sync Display Status
+
+public enum SyncDisplayStatus: Equatable, Sendable {
+    case unknown
+    case connected
+    case syncing
+    case disconnected
+    case error(String)
+
+    public var label: String {
+        switch self {
+        case .unknown: "Checking..."
+        case .connected: "Synced"
+        case .syncing: "Syncing..."
+        case .disconnected: "Disconnected"
+        case .error: "Sync Error"
+        }
+    }
+
+    public var systemImage: String {
+        switch self {
+        case .unknown: "questionmark.circle"
+        case .connected: "checkmark.circle.fill"
+        case .syncing: "arrow.triangle.2.circlepath"
+        case .disconnected: "wifi.slash"
+        case .error: "exclamationmark.triangle.fill"
+        }
+    }
+}
 
 @Reducer
 public struct SettingsFeature {
@@ -25,6 +56,13 @@ public struct SettingsFeature {
         // Background import tracking
         public var importingPlaylistIDs: Set<String> = []
         public var importErrors: [String: String] = [:]
+
+        // Sync status
+        public var syncStatus: SyncDisplayStatus = .unknown
+
+        // Data export
+        public var exportDataURL: URL?
+        public var isExporting: Bool = false
 
         public init() {}
     }
@@ -65,6 +103,14 @@ public struct SettingsFeature {
         case backgroundImportCompleted(playlistID: String)
         case backgroundImportFailed(playlistID: String, error: String)
         case dismissImportError(playlistID: String)
+        // Sync
+        case syncStatusUpdated(SyncDisplayStatus)
+        case retrySyncTapped
+        // Data export
+        case exportDataTapped
+        case exportDataReady(URL)
+        case exportDataFailed
+        case exportDataDismissed
         // Account
         case signOutTapped
     }
@@ -74,6 +120,7 @@ public struct SettingsFeature {
     @Dependency(\.playlistImportClient) var playlistImportClient
     @Dependency(\.userDefaultsClient) var userDefaultsClient
     @Dependency(\.watchProgressClient) var watchProgressClient
+    @Dependency(\.channelListClient) var channelListClient
 
     public init() {}
 
@@ -312,6 +359,74 @@ public struct SettingsFeature {
                 state.importErrors.removeValue(forKey: playlistID)
                 return .none
 
+            // Sync status
+            case let .syncStatusUpdated(status):
+                state.syncStatus = status
+                return .none
+
+            case .retrySyncTapped:
+                return .none // Handled by parent AppFeature
+
+            // Data export
+            case .exportDataTapped:
+                state.isExporting = true
+                let vod = vodListClient
+                let channelClient = channelListClient
+                let watchClient = watchProgressClient
+                let defaultsClient = userDefaultsClient
+                return .run { send in
+                    let playlists = try await vod.fetchPlaylists()
+                    var allChannels: [ChannelRecord] = []
+                    for playlist in playlists {
+                        let grouped = try await channelClient.fetchGroupedChannels(playlist.id)
+                        allChannels.append(contentsOf: grouped.allChannels)
+                    }
+                    let movies = try? await vod.searchVod("", nil, "movie")
+                    let series = try? await vod.searchVod("", nil, "series")
+                    let progress = try await watchClient.getUnfinished(1000)
+                    let prefs = UserPreferences.load(from: defaultsClient)
+
+                    let export: [String: Any] = [
+                        "exportedAt": ISO8601DateFormatter().string(from: Date()),
+                        "playlists": playlists.map { [
+                            "id": $0.id, "name": $0.name, "type": $0.type,
+                            "url": $0.url ?? ""
+                        ] as [String: Any] },
+                        "channelCount": allChannels.count,
+                        "movieCount": movies?.count ?? 0,
+                        "seriesCount": series?.count ?? 0,
+                        "watchProgressCount": progress.count,
+                        "preferences": [
+                            "preferredEngine": prefs.preferredEngine.rawValue,
+                            "resumePlaybackEnabled": prefs.resumePlaybackEnabled,
+                            "bufferTimeoutSeconds": prefs.bufferTimeoutSeconds,
+                        ] as [String: Any],
+                    ]
+
+                    let data = try JSONSerialization.data(
+                        withJSONObject: export, options: [.prettyPrinted, .sortedKeys]
+                    )
+                    let tempURL = FileManager.default.temporaryDirectory
+                        .appendingPathComponent("streamdeck-export.json")
+                    try data.write(to: tempURL)
+                    await send(.exportDataReady(tempURL))
+                } catch: { _, send in
+                    await send(.exportDataFailed)
+                }
+
+            case let .exportDataReady(url):
+                state.isExporting = false
+                state.exportDataURL = url
+                return .none
+
+            case .exportDataFailed:
+                state.isExporting = false
+                return .none
+
+            case .exportDataDismissed:
+                state.exportDataURL = nil
+                return .none
+
             case .signOutTapped:
                 return .none // Handled by parent AppFeature
             }
@@ -393,7 +508,43 @@ public struct SettingsView: View {
                         Text("30 seconds").tag(30)
                     }
                 }
+                Section("Sync") {
+                    HStack {
+                        Label(store.syncStatus.label, systemImage: store.syncStatus.systemImage)
+                            .foregroundStyle(syncStatusColor)
+                        Spacer()
+                        if case .error = store.syncStatus {
+                            Button("Retry") {
+                                store.send(.retrySyncTapped)
+                            }
+                            .buttonStyle(.borderless)
+                            .font(.caption)
+                        }
+                    }
+                    if case let .error(message) = store.syncStatus {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 Section("Data") {
+                    Button {
+                        store.send(.exportDataTapped)
+                    } label: {
+                        if store.isExporting {
+                            HStack {
+                                Label("Exporting...", systemImage: "square.and.arrow.up")
+                                Spacer()
+                                ProgressView()
+                                    #if os(tvOS)
+                                    .scaleEffect(0.8)
+                                    #endif
+                            }
+                        } else {
+                            Label("Export All Data", systemImage: "square.and.arrow.up")
+                        }
+                    }
+                    .disabled(store.isExporting)
                     Button(role: .destructive) {
                         store.send(.clearHistoryTapped)
                     } label: {
@@ -459,6 +610,28 @@ public struct SettingsView: View {
             ) {
                 editPlaylistSheet
             }
+            #if os(iOS)
+            .sheet(
+                isPresented: Binding(
+                    get: { store.exportDataURL != nil },
+                    set: { if !$0 { store.send(.exportDataDismissed) } }
+                )
+            ) {
+                if let url = store.exportDataURL {
+                    ShareSheet(items: [url])
+                }
+            }
+            #endif
+        }
+    }
+
+    private var syncStatusColor: Color {
+        switch store.syncStatus {
+        case .connected: .green
+        case .syncing: .blue
+        case .disconnected: .orange
+        case .error: .red
+        case .unknown: .secondary
         }
     }
 
@@ -619,3 +792,19 @@ public struct SettingsView: View {
         return formatter.localizedString(for: date, relativeTo: Date())
     }
 }
+
+// MARK: - Share Sheet
+
+#if os(iOS)
+import UIKit
+
+struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+#endif

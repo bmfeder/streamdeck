@@ -14,5 +14,5 @@ export async function loader({ request }: Route.LoaderArgs) {
     }
   }
 
-  return redirect("/login");
+  return redirect("/login?error=auth_failed");
 }

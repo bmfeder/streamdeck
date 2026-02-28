@@ -17,15 +17,11 @@ export function SyncStatus() {
 
     setState("connecting");
 
-    const check = async () => {
-      try {
-        const status = await (db as any).currentStatus;
-        if (status?.connected) {
-          setState(status.dataFlowStatus?.downloading ? "syncing" : "connected");
-        } else {
-          setState("connecting");
-        }
-      } catch {
+    const check = () => {
+      const status = db.currentStatus;
+      if (status?.connected) {
+        setState(status.dataFlowStatus?.downloading ? "syncing" : "connected");
+      } else {
         setState("connecting");
       }
     };
