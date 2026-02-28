@@ -52,20 +52,50 @@ Verify: Go to **Table Editor** and confirm all 5 tables appear:
    - Download the `.p8` file (one-time download!)
    - Note the **Key ID**
 
+### Generate the Apple Client Secret JWT
+
+Apple Sign In for web requires a **JWT client secret** signed with your `.p8` key.
+Supabase expects this JWT — **not** the raw `.p8` file contents.
+
+```bash
+# Install jsonwebtoken if needed
+npm install jsonwebtoken
+
+# Generate the secret (valid for 180 days)
+node -e "
+const jwt = require('jsonwebtoken');
+const fs = require('fs');
+const key = fs.readFileSync('./AuthKey_<KEY_ID>.p8');
+const secret = jwt.sign({}, key, {
+  algorithm: 'ES256',
+  expiresIn: '180d',
+  audience: 'https://appleid.apple.com',
+  issuer: '674CG3Y6T4',
+  subject: 'net.lctechnology.StreamDeck.web',
+  keyid: '<KEY_ID>',
+});
+console.log(secret);
+"
+```
+
+Replace `<KEY_ID>` with your Apple Key ID. The output starts with `eyJ...`.
+
 ### Supabase Dashboard
 
 1. Go to **Authentication > Providers > Apple**
 2. Enable the Apple provider
 3. Fill in:
    - **Client ID**: `net.lctechnology.StreamDeck.web` (the Services ID)
-   - **Secret Key**: Contents of the `.p8` file
+   - **Secret Key**: The JWT output from above (starts with `eyJ...`)
    - **Key ID**: From Apple Developer Console
    - **Team ID**: `674CG3Y6T4`
 4. Save
 
-> **Note**: Apple requires a new client secret every 6 months for web OAuth.
-> Supabase provides a tool to regenerate it from the .p8 file.
-> Native iOS/tvOS apps using ASAuthorizationAppleIDProvider do NOT need rotation.
+> **Note**: The client secret JWT expires after 180 days. Re-run the generation
+> script with your `.p8` key to get a new one. Keep the `.p8` file safe — it
+> cannot be re-downloaded from Apple.
+> Native iOS/tvOS apps using ASAuthorizationAppleIDProvider do NOT need this
+> secret and are not affected by rotation.
 
 ## Step 4: Set Up PowerSync Cloud
 
